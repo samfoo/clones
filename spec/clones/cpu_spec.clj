@@ -5,11 +5,32 @@
 (declare ^:dynamic cpu)
 (describe "The NES CPU"
   (describe "The instruction set"
+    (defn check-zero-flag-sets [c]
+      (it "should set the zero flag when the result is zero"
+        (should (zero-flag? (c cpu)))))
+
+    (defn check-zero-flag-unsets [c]
+      (it "should unset the zero flag when the result is non-zero"
+        (should-not (zero-flag? (c (update-flags cpu zero-flag))))))
+
+    (defn check-negative-flag-sets [c]
+      (it "should set the negative flag when the result is negative"
+        (should (negative-flag? (c cpu)))))
+
+    (defn check-negative-flag-unsets [c]
+      (it "should unset the negative flag when the result is non-negative"
+        (should-not (negative-flag? (c (update-flags cpu negative-flag))))))
+
     (around [it]
        (binding [cpu (make-cpu)]
          (it)))
 
     (describe "sbc"
+      (check-zero-flag-sets #(sbc (assoc %1 :a 1) 0))
+      (check-zero-flag-unsets #(sbc %1 1))
+      (check-negative-flag-sets #(sbc %1 0))
+      (check-negative-flag-unsets #(sbc %1 0xff))
+
       (it "should set the carry flag when the result is an unsigned underflow"
         (let [new-cpu (sbc (assoc cpu :a 0) 1)]
           (should (carry-flag? new-cpu))))
@@ -18,26 +39,6 @@
         (let [cpu-with-carry (update-flags (assoc cpu :a 1) carry-flag)
               new-cpu (sbc cpu-with-carry 0)]
           (should-not (carry-flag? new-cpu))))
-
-      (it "should set the zero flag when the result is zero"
-        (let [new-cpu (sbc (assoc cpu :a 1) 0)]
-          (should (zero-flag? new-cpu))))
-
-      (it "should unset the zero flag when the result is non-zero"
-        (let [
-              cpu-with-zero (update-flags cpu zero-flag)
-              new-cpu (sbc cpu-with-zero 1)]
-          (should-not (zero-flag? new-cpu))))
-
-      (it "should set the negative flag when the result is negative"
-        (let [new-cpu (sbc cpu 0)]
-          (should (negative-flag? new-cpu))))
-
-      (it "should unset the negative flag when the result is not negative"
-        (let [
-              cpu-with-negative (update-flags (assoc cpu :a 1) negative-flag)
-              new-cpu (sbc cpu-with-negative 0)]
-          (should-not (negative-flag? new-cpu))))
 
       (it "should set the overflow flag when subtracting a negative from a positive yields a negative"
         (let [cpu-with-carry (update-flags cpu carry-flag)
@@ -79,25 +80,10 @@
         (let [new-cpu (adc (update-flags cpu carry-flag) 1)]
           (should-not (carry-flag? new-cpu))))
 
-      (it "should set the zero flag when the result is zero"
-        (let [new-cpu (adc cpu 0)]
-          (should (zero-flag? new-cpu))))
-
-      (it "should unset the zero flag when the result is non-zero"
-        (let [
-              cpu-with-zero (update-flags cpu zero-flag)
-              new-cpu (adc cpu-with-zero 1)]
-          (should-not (zero-flag? new-cpu))))
-
-      (it "should set the negative flag when the result is negative"
-        (let [new-cpu (adc cpu 0x80)]
-          (should (negative-flag? new-cpu))))
-
-      (it "should unset the negative flag when the result is not negative"
-        (let [
-              cpu-with-negative (update-flags cpu negative-flag)
-              new-cpu (adc cpu-with-negative 1)]
-          (should-not (negative-flag? new-cpu))))
+      (check-zero-flag-sets #(adc %1 0))
+      (check-zero-flag-unsets #(adc %1 1))
+      (check-negative-flag-sets #(adc %1 0x80))
+      (check-negative-flag-unsets #(adc %1 0))
 
       (it "should set the overflow flag when adding two positives yields a negative"
         (let [cpu (merge cpu {:a 0x79})
