@@ -92,3 +92,20 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
 
+(defn and*
+  [cpu arg]
+  (let [result (unsigned-byte (bit-and (:a cpu) arg))
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+  (merge cpu {:a result :p new-flags})))
+
+(defn ora
+  [cpu arg]
+  (let [result (unsigned-byte (bit-or (:a cpu) arg))
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+    (merge cpu {:a result :p new-flags})))
