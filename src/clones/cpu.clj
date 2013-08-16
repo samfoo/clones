@@ -109,3 +109,17 @@
                  negative-flag (negative? result)}
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
+
+;; Loading and storing operations
+(defn load-op
+  [cpu arg reg]
+  (let [result (unsigned-byte arg)
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+  (merge cpu {reg result :p new-flags})))
+
+(defn lda [cpu arg] (load-op cpu arg :a))
+(defn ldx [cpu arg] (load-op cpu arg :x))
+(defn ldy [cpu arg] (load-op cpu arg :y))

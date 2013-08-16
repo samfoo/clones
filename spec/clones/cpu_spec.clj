@@ -4,7 +4,7 @@
 
 (declare ^:dynamic cpu)
 (describe "The NES CPU"
-  (describe "The instruction set"
+  (describe "instruction set"
     (defn check-zero-flag-sets [c]
       (it "should set the zero flag when the result is zero"
         (should (zero-flag? (c cpu)))))
@@ -24,6 +24,28 @@
     (around [it]
        (binding [cpu (make-cpu)]
          (it)))
+
+    (describe "loading operations"
+      (for [op ['lda 'ldx 'ldy]]
+        (do
+          (describe (name op)
+            (check-zero-flag-sets #((resolve op) %1 0))
+            (check-zero-flag-unsets #((resolve op) %1 1))
+            (check-negative-flag-sets #((resolve op) %1 0x80))
+            (check-negative-flag-unsets #((resolve op) %1 0)))
+
+          (case op
+            ldy (it "should load the y register with the argument"
+                   (let [new-cpu (ldy cpu 0xbb)]
+                     (should= (:y new-cpu) 0xbb)))
+
+            ldx (it "should load the x register with the argument"
+                   (let [new-cpu (ldx cpu 0xbb)]
+                     (should= (:x new-cpu) 0xbb)))
+
+            lda (it "should load the accumulator with the argument"
+                   (let [new-cpu (lda cpu 0xbb)]
+                     (should= (:a new-cpu) 0xbb)))))))
 
     (describe "ora"
       (check-zero-flag-sets #(ora %1 0))
