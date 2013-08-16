@@ -109,25 +109,32 @@
           (let [new-cpu (lda cpu 0xbb)]
             (should= (:a new-cpu) 0xbb)))))
 
-    (describe "ora"
-      (check-zero-flag-sets #(ora %1 0))
-      (check-zero-flag-unsets #(ora (assoc %1 :a 1) 1))
-      (check-negative-flag-sets #(ora (assoc %1 :a 0x80) 0x80))
-      (check-negative-flag-unsets #(ora %1 0))
+    (describe "logical operations"
+      (describe "eor"
+        (check-zero-flag-sets #(eor %1 0))
+        (check-zero-flag-unsets #(eor (assoc %1 :a 1) 0))
+        (check-negative-flag-sets #(eor (assoc %1 :a 0x80) 0))
+        (check-negative-flag-unsets #(eor %1 0)))
 
-      (it "should or the argument with the accumulator"
-        (let [new-cpu (ora cpu 0xa5)]
-          (should= (:a new-cpu) 0xa5))))
+      (describe "ora"
+        (check-zero-flag-sets #(ora %1 0))
+        (check-zero-flag-unsets #(ora (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(ora (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(ora %1 0))
 
-    (describe "and*"
-      (check-zero-flag-sets #(and* %1 0))
-      (check-zero-flag-unsets #(and* (assoc %1 :a 1) 1))
-      (check-negative-flag-sets #(and* (assoc %1 :a 0x80) 0x80))
-      (check-negative-flag-unsets #(and* %1 0))
+        (it "should or the argument with the accumulator"
+          (let [new-cpu (ora cpu 0xa5)]
+            (should= (:a new-cpu) 0xa5))))
 
-      (it "should and the argument with the accumulator"
-        (let [new-cpu (and* (assoc cpu :a 0xff) 0xa5)]
-          (should= (:a new-cpu) 0xa5))))
+      (describe "and*"
+        (check-zero-flag-sets #(and* %1 0))
+        (check-zero-flag-unsets #(and* (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(and* (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(and* %1 0))
+
+        (it "should and the argument with the accumulator"
+          (let [new-cpu (and* (assoc cpu :a 0xff) 0xa5)]
+            (should= (:a new-cpu) 0xa5)))))
 
     (describe "sbc"
       (check-zero-flag-sets #(sbc (assoc %1 :a 1) 0))

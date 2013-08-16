@@ -92,23 +92,19 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
 
-(defn and*
-  [cpu arg]
-  (let [result (unsigned-byte (bit-and (:a cpu) arg))
+;; Logical operations
+(defn logical-op
+  [cpu arg method]
+  (let [result (unsigned-byte (method (:a cpu) arg))
         flags (:p cpu)
         updates {zero-flag (zero? result)
                  negative-flag (negative? result)}
         new-flags (set-flags flags updates)]
   (merge cpu {:a result :p new-flags})))
 
-(defn ora
-  [cpu arg]
-  (let [result (unsigned-byte (bit-or (:a cpu) arg))
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:a result :p new-flags})))
+(defn and* [cpu arg] (logical-op cpu arg bit-and))
+(defn ora [cpu arg] (logical-op cpu arg bit-or))
+(defn eor [cpu arg] (logical-op cpu arg bit-xor))
 
 ;; Load operations
 (defn load-op
@@ -125,7 +121,7 @@
 (defn ldy [cpu arg] (load-op cpu arg :y))
 
 ;; Register transfers
-(defn transfer-reg
+(defn transfer-reg-op
   [cpu from to]
   (let [result (from cpu)
         flags (:p cpu)
@@ -134,9 +130,9 @@
         new-flags (set-flags flags updates)]
   (merge cpu {to result :p new-flags})))
 
-(defn tax [cpu] (transfer-reg cpu :a :x))
-(defn tay [cpu] (transfer-reg cpu :a :y))
-(defn txa [cpu] (transfer-reg cpu :x :a))
-(defn tya [cpu] (transfer-reg cpu :y :a))
-(defn tsx [cpu] (transfer-reg cpu :sp :x))
-(defn txs [cpu] (transfer-reg cpu :x :sp))
+(defn tax [cpu] (transfer-reg-op cpu :a :x))
+(defn tay [cpu] (transfer-reg-op cpu :a :y))
+(defn txa [cpu] (transfer-reg-op cpu :x :a))
+(defn tya [cpu] (transfer-reg-op cpu :y :a))
+(defn tsx [cpu] (transfer-reg-op cpu :sp :x))
+(defn txs [cpu] (transfer-reg-op cpu :x :sp))
