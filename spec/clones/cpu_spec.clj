@@ -25,27 +25,89 @@
        (binding [cpu (make-cpu)]
          (it)))
 
+    (describe "register transfers"
+      (describe "txs"
+        (check-zero-flag-sets #(txs (assoc %1 :x 0)))
+        (check-zero-flag-unsets #(txs (assoc %1 :x 1)))
+        (check-negative-flag-sets #(txs (assoc %1 :x 0x80)))
+        (check-negative-flag-unsets #(txs (assoc %1 :x 0)))
+
+        (it "should transfer the value in the x register to the accumulator"
+          (let [new-cpu (txs (assoc cpu :x 0x44))]
+            (should= (:sp new-cpu) 0x44))))
+
+      (describe "tsx"
+        (check-zero-flag-sets #(tsx (assoc %1 :sp 0)))
+        (check-zero-flag-unsets #(tsx (assoc %1 :sp 1)))
+        (check-negative-flag-sets #(tsx (assoc %1 :sp 0x80)))
+        (check-negative-flag-unsets #(tsx (assoc %1 :sp 0)))
+
+        (it "should transfer the value in the x register to the accumulator"
+          (let [new-cpu (tsx (assoc cpu :sp 0x44))]
+            (should= (:x new-cpu) 0x44))))
+
+      (describe "tya"
+        (check-zero-flag-sets #(tya (assoc %1 :y 0)))
+        (check-zero-flag-unsets #(tya (assoc %1 :y 1)))
+        (check-negative-flag-sets #(tya (assoc %1 :y 0x80)))
+        (check-negative-flag-unsets #(tya (assoc %1 :y 0)))
+
+        (it "should transfer the value in the x register to the accumulator"
+          (let [new-cpu (tya (assoc cpu :y 0x44))]
+            (should= (:a new-cpu) 0x44))))
+
+      (describe "txa"
+        (check-zero-flag-sets #(txa (assoc %1 :x 0)))
+        (check-zero-flag-unsets #(txa (assoc %1 :x 1)))
+        (check-negative-flag-sets #(txa (assoc %1 :x 0x80)))
+        (check-negative-flag-unsets #(txa (assoc %1 :x 0)))
+
+        (it "should transfer the value in the x register to the accumulator"
+          (let [new-cpu (txa (assoc cpu :x 0x44))]
+            (should= (:a new-cpu) 0x44))))
+
+      (describe "tay"
+        (check-zero-flag-sets #(tay (assoc %1 :a 0)))
+        (check-zero-flag-unsets #(tay (assoc %1 :a 1)))
+        (check-negative-flag-sets #(tay (assoc %1 :a 0x80)))
+        (check-negative-flag-unsets #(tay (assoc %1 :a 0)))
+
+        (it "should transfer the value in the accumulator to the y register"
+          (let [new-cpu (tay (assoc cpu :a 0x44))]
+            (should= (:y new-cpu) 0x44))))
+
+      (describe "tax"
+        (check-zero-flag-sets #(tax (assoc %1 :a 0)))
+        (check-zero-flag-unsets #(tax (assoc %1 :a 1)))
+        (check-negative-flag-sets #(tax (assoc %1 :a 0x80)))
+        (check-negative-flag-unsets #(tax (assoc %1 :a 0)))
+
+        (it "should transfer the value in the accumulator to the x register"
+          (let [new-cpu (tax (assoc cpu :a 0x44))]
+            (should= (:x new-cpu) 0x44)))))
+
     (describe "loading operations"
       (for [op ['lda 'ldx 'ldy]]
-        (do
-          (describe (name op)
-            (check-zero-flag-sets #((resolve op) %1 0))
-            (check-zero-flag-unsets #((resolve op) %1 1))
-            (check-negative-flag-sets #((resolve op) %1 0x80))
-            (check-negative-flag-unsets #((resolve op) %1 0)))
+        (describe (name op)
+          (check-zero-flag-sets #((resolve op) %1 0))
+          (check-zero-flag-unsets #((resolve op) %1 1))
+          (check-negative-flag-sets #((resolve op) %1 0x80))
+          (check-negative-flag-unsets #((resolve op) %1 0))))
 
-          (case op
-            ldy (it "should load the y register with the argument"
-                   (let [new-cpu (ldy cpu 0xbb)]
-                     (should= (:y new-cpu) 0xbb)))
+      (describe "ldy"
+        (it "should load the y register with the argument"
+          (let [new-cpu (ldy cpu 0xbb)]
+            (should= (:y new-cpu) 0xbb))))
 
-            ldx (it "should load the x register with the argument"
-                   (let [new-cpu (ldx cpu 0xbb)]
-                     (should= (:x new-cpu) 0xbb)))
+      (describe "ldx"
+        (it "should load the x register with the argument"
+          (let [new-cpu (ldx cpu 0xbb)]
+            (should= (:x new-cpu) 0xbb))))
 
-            lda (it "should load the accumulator with the argument"
-                   (let [new-cpu (lda cpu 0xbb)]
-                     (should= (:a new-cpu) 0xbb)))))))
+      (describe "lda"
+        (it "should load the accumulator with the argument"
+          (let [new-cpu (lda cpu 0xbb)]
+            (should= (:a new-cpu) 0xbb)))))
 
     (describe "ora"
       (check-zero-flag-sets #(ora %1 0))

@@ -110,7 +110,7 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
 
-;; Loading and storing operations
+;; Load operations
 (defn load-op
   [cpu arg reg]
   (let [result (unsigned-byte arg)
@@ -123,3 +123,20 @@
 (defn lda [cpu arg] (load-op cpu arg :a))
 (defn ldx [cpu arg] (load-op cpu arg :x))
 (defn ldy [cpu arg] (load-op cpu arg :y))
+
+;; Register transfers
+(defn transfer-reg
+  [cpu from to]
+  (let [result (from cpu)
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+  (merge cpu {to result :p new-flags})))
+
+(defn tax [cpu] (transfer-reg cpu :a :x))
+(defn tay [cpu] (transfer-reg cpu :a :y))
+(defn txa [cpu] (transfer-reg cpu :x :a))
+(defn tya [cpu] (transfer-reg cpu :y :a))
+(defn tsx [cpu] (transfer-reg cpu :sp :x))
+(defn txs [cpu] (transfer-reg cpu :x :sp))
