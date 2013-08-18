@@ -110,6 +110,20 @@
             (should= (:a new-cpu) 0xbb)))))
 
     (describe "logical operations"
+      (describe "bit"
+        (check-zero-flag-sets #(bit %1 0))
+        (check-zero-flag-unsets #(bit (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(bit (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(bit %1 0))
+
+        (it "should set the overflow flag when the 6th bit of the result is set"
+          (let [new-cpu (bit (assoc cpu :a 0x40) 0x40)]
+            (should (overflow-flag? new-cpu))))
+
+        (it "should unset the overflow flag when the 6th bit of the result is unset"
+          (let [new-cpu (bit (update-flags cpu overflow-flag) 0)]
+            (should-not (overflow-flag? new-cpu)))))
+
       (describe "eor"
         (check-zero-flag-sets #(eor %1 0))
         (check-zero-flag-unsets #(eor (assoc %1 :a 1) 0))

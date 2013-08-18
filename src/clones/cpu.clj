@@ -100,11 +100,20 @@
         updates {zero-flag (zero? result)
                  negative-flag (negative? result)}
         new-flags (set-flags flags updates)]
-  (merge cpu {:a result :p new-flags})))
+    (merge cpu {:a result :p new-flags})))
 
 (defn and* [cpu arg] (logical-op cpu arg bit-and))
 (defn ora [cpu arg] (logical-op cpu arg bit-or))
 (defn eor [cpu arg] (logical-op cpu arg bit-xor))
+(defn bit
+  [cpu arg]
+  (let [result (unsigned-byte (bit-and (:a cpu) arg))
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 overflow-flag (== 0x40 (bit-and result 0x40))
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+    (merge cpu {:p new-flags})))
 
 ;; Load operations
 (defn load-op
