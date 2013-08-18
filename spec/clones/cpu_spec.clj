@@ -25,7 +25,7 @@
        (binding [cpu (make-cpu)]
          (it)))
 
-    (describe "register transfers"
+    (describe "register transfer operations"
       (describe "txs"
         (check-zero-flag-sets #(txs (assoc %1 :x 0)))
         (check-zero-flag-unsets #(txs (assoc %1 :x 1)))
@@ -108,6 +108,22 @@
         (it "should load the accumulator with the argument"
           (let [new-cpu (lda cpu 0xbb)]
             (should= (:a new-cpu) 0xbb)))))
+
+    (describe "comparison operations"
+      (describe "cmp"
+        (check-zero-flag-sets #(cmp %1 0))
+        (check-zero-flag-unsets #(cmp (assoc %1 :a 1) 0))
+        (check-negative-flag-sets #(cmp (assoc %1 :a 0x81) 1))
+        (check-negative-flag-unsets #(cmp %1 0))
+
+        (it "should set the carry flag if the accumulator is greater than or equal to the argument"
+          (let [new-cpu (cmp (assoc cpu :a 0x10) 1)]
+            (should (carry-flag? new-cpu))))
+
+        (it "should unset the carry flag if the accumulator is less than the argument"
+          (let [cpu-with-carry (update-flags cpu overflow-flag)
+                new-cpu (cmp cpu-with-carry 0x10)]
+            (should-not (carry-flag? new-cpu))))))
 
     (describe "logical operations"
       (describe "bit"
