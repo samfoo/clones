@@ -163,3 +163,6 @@
 (defn tya [cpu] (transfer-reg-op cpu :y :a))
 (defn tsx [cpu] (transfer-reg-op cpu :sp :x))
 (defn txs [cpu] (transfer-reg-op cpu :x :sp))
+
+;; Increment & decrements
+

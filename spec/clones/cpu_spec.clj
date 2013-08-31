@@ -26,65 +26,22 @@
          (it)))
 
     (describe "register transfer operations"
-      (describe "txs"
-        (check-zero-flag-sets #(txs (assoc %1 :x 0)))
-        (check-zero-flag-unsets #(txs (assoc %1 :x 1)))
-        (check-negative-flag-sets #(txs (assoc %1 :x 0x80)))
-        (check-negative-flag-unsets #(txs (assoc %1 :x 0)))
+      (map (fn [[op [from-reg to-reg]]]
+             (describe (str op)
+               (check-zero-flag-sets #((resolve op) (assoc %1 from-reg 0)))
+               (check-zero-flag-unsets #((resolve op) (assoc %1 from-reg 1)))
+               (check-negative-flag-sets #((resolve op) (assoc %1 from-reg 0x80)))
+               (check-negative-flag-unsets #((resolve op) (assoc %1 from-reg 0)))
 
-        (it "should transfer the value in the x register to the accumulator"
-          (let [new-cpu (txs (assoc cpu :x 0x44))]
-            (should= (:sp new-cpu) 0x44))))
-
-      (describe "tsx"
-        (check-zero-flag-sets #(tsx (assoc %1 :sp 0)))
-        (check-zero-flag-unsets #(tsx (assoc %1 :sp 1)))
-        (check-negative-flag-sets #(tsx (assoc %1 :sp 0x80)))
-        (check-negative-flag-unsets #(tsx (assoc %1 :sp 0)))
-
-        (it "should transfer the value in the x register to the accumulator"
-          (let [new-cpu (tsx (assoc cpu :sp 0x44))]
-            (should= (:x new-cpu) 0x44))))
-
-      (describe "tya"
-        (check-zero-flag-sets #(tya (assoc %1 :y 0)))
-        (check-zero-flag-unsets #(tya (assoc %1 :y 1)))
-        (check-negative-flag-sets #(tya (assoc %1 :y 0x80)))
-        (check-negative-flag-unsets #(tya (assoc %1 :y 0)))
-
-        (it "should transfer the value in the x register to the accumulator"
-          (let [new-cpu (tya (assoc cpu :y 0x44))]
-            (should= (:a new-cpu) 0x44))))
-
-      (describe "txa"
-        (check-zero-flag-sets #(txa (assoc %1 :x 0)))
-        (check-zero-flag-unsets #(txa (assoc %1 :x 1)))
-        (check-negative-flag-sets #(txa (assoc %1 :x 0x80)))
-        (check-negative-flag-unsets #(txa (assoc %1 :x 0)))
-
-        (it "should transfer the value in the x register to the accumulator"
-          (let [new-cpu (txa (assoc cpu :x 0x44))]
-            (should= (:a new-cpu) 0x44))))
-
-      (describe "tay"
-        (check-zero-flag-sets #(tay (assoc %1 :a 0)))
-        (check-zero-flag-unsets #(tay (assoc %1 :a 1)))
-        (check-negative-flag-sets #(tay (assoc %1 :a 0x80)))
-        (check-negative-flag-unsets #(tay (assoc %1 :a 0)))
-
-        (it "should transfer the value in the accumulator to the y register"
-          (let [new-cpu (tay (assoc cpu :a 0x44))]
-            (should= (:y new-cpu) 0x44))))
-
-      (describe "tax"
-        (check-zero-flag-sets #(tax (assoc %1 :a 0)))
-        (check-zero-flag-unsets #(tax (assoc %1 :a 1)))
-        (check-negative-flag-sets #(tax (assoc %1 :a 0x80)))
-        (check-negative-flag-unsets #(tax (assoc %1 :a 0)))
-
-        (it "should transfer the value in the accumulator to the x register"
-          (let [new-cpu (tax (assoc cpu :a 0x44))]
-            (should= (:x new-cpu) 0x44)))))
+               (it (format "should transfer the value in the %s register to the %s register" (str from-reg) (str to-reg))
+                 (let [new-cpu ((resolve op) (assoc cpu from-reg 0x44))]
+                   (should= (to-reg new-cpu) 0x44)))))
+        {'tax [:a :x]
+         'tay [:a :y]
+         'txa [:x :a]
+         'tya [:y :a]
+         'tsx [:sp :x]
+         'txs [:x :sp]}))
 
     (describe "loading operations"
       (for [op ['lda 'ldx 'ldy]]
