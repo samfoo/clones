@@ -36,10 +36,10 @@
 (defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
 
 ;; Comparison operations
-(defn cmp
-  [cpu arg]
-  (let [result (unsigned-byte (- (:a cpu) arg))
-        register (unsigned-byte (:a cpu))
+(defn compare-op
+  [cpu arg reg]
+  (let [result (unsigned-byte (- (reg cpu) arg))
+        register (unsigned-byte (reg cpu))
         value (unsigned-byte arg)
         flags (:p cpu)
         updates {carry-flag (>= register value)
@@ -47,6 +47,10 @@
                  zero-flag (zero? result)}
         new-flags (set-flags flags updates)]
     (merge cpu {:p new-flags})))
+
+(defn cmp [cpu arg] (compare-op cpu arg :a))
+(defn cpx [cpu arg] (compare-op cpu arg :x))
+(defn cpy [cpu arg] (compare-op cpu arg :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?

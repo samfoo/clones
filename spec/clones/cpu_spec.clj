@@ -110,20 +110,24 @@
             (should= (:a new-cpu) 0xbb)))))
 
     (describe "comparison operations"
-      (describe "cmp"
-        (check-zero-flag-sets #(cmp %1 0))
-        (check-zero-flag-unsets #(cmp (assoc %1 :a 1) 0))
-        (check-negative-flag-sets #(cmp (assoc %1 :a 0x81) 1))
-        (check-negative-flag-unsets #(cmp %1 0))
+      (map (fn [[op reg]]
+        (describe (str op)
+          (check-zero-flag-sets #((resolve op) %1 0))
+          (check-zero-flag-unsets #((resolve op) (assoc %1 reg 1) 0))
+          (check-negative-flag-sets #((resolve op) (assoc %1 reg 0x81) 1))
+          (check-negative-flag-unsets #((resolve op) %1 0))
 
-        (it "should set the carry flag if the accumulator is greater than or equal to the argument"
-          (let [new-cpu (cmp (assoc cpu :a 0x10) 1)]
-            (should (carry-flag? new-cpu))))
+          (it (format "should set the carry flag if the %s register is greater than or equal to the argument" (str reg))
+            (let [new-cpu ((resolve op) (assoc cpu reg 0x10) 1)]
+              (should (carry-flag? new-cpu))))
 
-        (it "should unset the carry flag if the accumulator is less than the argument"
-          (let [cpu-with-carry (update-flags cpu overflow-flag)
-                new-cpu (cmp cpu-with-carry 0x10)]
-            (should-not (carry-flag? new-cpu))))))
+          (it (format "should unset the carry flag if the %s register is less than the argument" (str reg))
+            (let [cpu-with-carry (update-flags cpu overflow-flag)
+                  new-cpu ((resolve op) cpu-with-carry 0x10)]
+              (should-not (carry-flag? new-cpu))))))
+        {'cmp :a
+         'cpx :x
+         'cpy :y}))
 
     (describe "logical operations"
       (describe "bit"
