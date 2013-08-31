@@ -165,4 +165,15 @@
 (defn txs [cpu] (transfer-reg-op cpu :x :sp))
 
 ;; Increment & decrements
+(defn increment-op
+  [cpu reg]
+  (let [result (unsigned-byte (+ (reg cpu) 1))
+        flags (:p cpu)
+        updates {zero-flag (zero? result)
+                 negative-flag (negative? result)}
+        new-flags (set-flags flags updates)]
+  (merge cpu {reg result :p new-flags})))
 
+(defn inc [cpu] (increment-op cpu :a))
+(defn inx [cpu] (increment-op cpu :x))
+(defn iny [cpu] (increment-op cpu :y))

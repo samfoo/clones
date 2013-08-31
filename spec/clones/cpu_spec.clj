@@ -25,6 +25,21 @@
        (binding [cpu (make-cpu)]
          (it)))
 
+    (describe "increment operations"
+      (map (fn [[op reg]]
+             (describe (str op)
+               (check-zero-flag-sets #((resolve op) (assoc %1 reg 0xff)))
+               (check-zero-flag-unsets #((resolve op) (assoc %1 reg 0)))
+               (check-negative-flag-sets #((resolve op) (assoc %1 reg 0x7f)))
+               (check-negative-flag-unsets #((resolve op) (assoc %1 reg 0)))
+
+               (it (format "should increment the %s register by one" (str reg))
+                 (let [new-cpu ((resolve op) cpu)]
+                   (should= 1 (reg new-cpu))))))
+        {'inc :a
+         'inx :x
+         'iny :y}))
+
     (describe "register transfer operations"
       (map (fn [[op [from-reg to-reg]]]
              (describe (str op)
