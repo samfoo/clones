@@ -25,6 +25,21 @@
        (binding [cpu (make-cpu)]
          (it)))
 
+    (describe "decrement operations"
+      (map (fn [[op reg]]
+             (describe (str op)
+               (check-zero-flag-sets #((resolve op) (assoc %1 reg 1)))
+               (check-zero-flag-unsets #((resolve op) (assoc %1 reg 2)))
+               (check-negative-flag-sets #((resolve op) (assoc %1 reg 0)))
+               (check-negative-flag-unsets #((resolve op) (assoc %1 reg 1)))
+
+               (it (format "should decrement the %s register by one" (str reg))
+                 (let [new-cpu ((resolve op) cpu)]
+                   (should= 0xff (reg new-cpu))))))
+        {'dec :a
+         'dex :x
+         'dey :y}))
+
     (describe "increment operations"
       (map (fn [[op reg]]
              (describe (str op)
