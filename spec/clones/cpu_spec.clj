@@ -2,7 +2,9 @@
   (:require [speclj.core :refer :all]
             [clones.cpu  :refer :all]))
 
-(declare ^:dynamic cpu)
+(def cpu (make-cpu))
+(def cpu-with-carry (assoc cpu :p carry-flag))
+
 (describe "The NES CPU"
   (describe "instruction set"
     (defn check-zero-flag-sets [c]
@@ -21,20 +23,16 @@
       (it "should unset the negative flag when the result is non-negative"
         (should-not (negative-flag? (c (update-flags cpu negative-flag))))))
 
-    (around [it]
-       (binding [cpu (make-cpu)]
-         (it)))
-
     (describe "decrement operations"
       (map (fn [[op reg]]
              (describe (str op)
-               (check-zero-flag-sets #((resolve op) (assoc %1 reg 1)))
-               (check-zero-flag-unsets #((resolve op) (assoc %1 reg 2)))
-               (check-negative-flag-sets #((resolve op) (assoc %1 reg 0)))
-               (check-negative-flag-unsets #((resolve op) (assoc %1 reg 1)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1)))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 2)))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1)))
 
                (it (format "should decrement the %s register by one" (str reg))
-                 (let [new-cpu ((resolve op) cpu)]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu)]
                    (should= 0xff (reg new-cpu))))))
         {'dec :a
          'dex :x
@@ -43,13 +41,13 @@
     (describe "increment operations"
       (map (fn [[op reg]]
              (describe (str op)
-               (check-zero-flag-sets #((resolve op) (assoc %1 reg 0xff)))
-               (check-zero-flag-unsets #((resolve op) (assoc %1 reg 0)))
-               (check-negative-flag-sets #((resolve op) (assoc %1 reg 0x7f)))
-               (check-negative-flag-unsets #((resolve op) (assoc %1 reg 0)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0xff)))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0x7f)))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
 
                (it (format "should increment the %s register by one" (str reg))
-                 (let [new-cpu ((resolve op) cpu)]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu)]
                    (should= 1 (reg new-cpu))))))
         {'inc :a
          'inx :x
@@ -58,13 +56,13 @@
     (describe "register transfer operations"
       (map (fn [[op [from-reg to-reg]]]
              (describe (str op)
-               (check-zero-flag-sets #((resolve op) (assoc %1 from-reg 0)))
-               (check-zero-flag-unsets #((resolve op) (assoc %1 from-reg 1)))
-               (check-negative-flag-sets #((resolve op) (assoc %1 from-reg 0x80)))
-               (check-negative-flag-unsets #((resolve op) (assoc %1 from-reg 0)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0)))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 1)))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0x80)))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0)))
 
                (it (format "should transfer the value in the %s register to the %s register" (str from-reg) (str to-reg))
-                 (let [new-cpu ((resolve op) (assoc cpu from-reg 0x44))]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) (assoc cpu from-reg 0x44))]
                    (should= (to-reg new-cpu) 0x44)))))
         {'tax [:a :x]
          'tay [:a :y]
@@ -76,10 +74,10 @@
     (describe "loading operations"
       (for [op ['lda 'ldx 'ldy]]
         (describe (name op)
-          (check-zero-flag-sets #((resolve op) %1 0))
-          (check-zero-flag-unsets #((resolve op) %1 1))
-          (check-negative-flag-sets #((resolve op) %1 0x80))
-          (check-negative-flag-unsets #((resolve op) %1 0))))
+          (check-zero-flag-sets #((ns-resolve 'clones.cpu op) %1 0))
+          (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) %1 1))
+          (check-negative-flag-sets #((ns-resolve 'clones.cpu op) %1 0x80))
+          (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) %1 0))))
 
       (describe "ldy"
         (it "should load the y register with the argument"
@@ -99,18 +97,18 @@
     (describe "comparison operations"
       (map (fn [[op reg]]
         (describe (str op)
-          (check-zero-flag-sets #((resolve op) %1 0))
-          (check-zero-flag-unsets #((resolve op) (assoc %1 reg 1) 0))
-          (check-negative-flag-sets #((resolve op) (assoc %1 reg 0x81) 1))
-          (check-negative-flag-unsets #((resolve op) %1 0))
+          (check-zero-flag-sets #((ns-resolve 'clones.cpu op) %1 0))
+          (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1) 0))
+          (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0x81) 1))
+          (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) %1 0))
 
           (it (format "should set the carry flag if the %s register is greater than or equal to the argument" (str reg))
-            (let [new-cpu ((resolve op) (assoc cpu reg 0x10) 1)]
+            (let [new-cpu ((ns-resolve 'clones.cpu op) (assoc cpu reg 0x10) 1)]
               (should (carry-flag? new-cpu))))
 
           (it (format "should unset the carry flag if the %s register is less than the argument" (str reg))
             (let [cpu-with-carry (update-flags cpu overflow-flag)
-                  new-cpu ((resolve op) cpu-with-carry 0x10)]
+                  new-cpu ((ns-resolve 'clones.cpu op) cpu-with-carry 0x10)]
               (should-not (carry-flag? new-cpu))))))
         {'cmp :a
          'cpx :x
@@ -187,16 +185,12 @@
             (should= (:a new-cpu) 0xfe))))
 
       (context "when the carry flag is set"
-        (around [it]
-          (binding [cpu (assoc cpu :p carry-flag)]
-            (it)))
-
         (it "should subtract the argument from the accumulator"
-          (let [new-cpu (sbc (assoc cpu :a 0xff) 1)]
+          (let [new-cpu (sbc (assoc cpu-with-carry :a 0xff) 1)]
             (should= (:a new-cpu) 0xfe)))
 
         (it "should overflow if the subtraction would be less than 0"
-          (let [new-cpu (sbc cpu 1)]
+          (let [new-cpu (sbc cpu-with-carry 1)]
             (should= (:a new-cpu) 0xff)))))
 
     (describe "adc"
@@ -233,14 +227,10 @@
             (should= (:a new-cpu) 1))))
 
       (context "when the carry flag is set"
-        (around [it]
-          (binding [cpu (update-flags cpu carry-flag)]
-            (it)))
-
         (it "should add an additional 1 to the result"
-          (let [new-cpu (adc cpu 0)]
+          (let [new-cpu (adc cpu-with-carry 0)]
             (should= (:a new-cpu) 1)))
 
         (it "should unset the carry flag"
-          (let [new-cpu (adc cpu 1)]
+          (let [new-cpu (adc cpu-with-carry 1)]
             (should-not (carry-flag? new-cpu))))))))
