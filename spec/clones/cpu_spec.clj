@@ -26,53 +26,53 @@
     (describe "decrement operations"
       (map (fn [[op reg]]
              (describe (str op)
-               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1)))
-               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 2)))
-               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
-               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1) nil))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 2) nil))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0) nil))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 1) nil))
 
                (it (format "should decrement the %s register by one" (str reg))
-                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu)]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu nil)]
                    (should= 0xff (reg new-cpu))))))
-        {'dec :a
-         'dex :x
-         'dey :y}))
+        {'*asm-dec :a
+         '*asm-dex :x
+         '*asm-dey :y}))
 
     (describe "increment operations"
       (map (fn [[op reg]]
              (describe (str op)
-               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0xff)))
-               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
-               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0x7f)))
-               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0xff) nil))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0) nil))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0x7f) nil))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 reg 0) nil))
 
                (it (format "should increment the %s register by one" (str reg))
-                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu)]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) cpu nil)]
                    (should= 1 (reg new-cpu))))))
-        {'inc :a
-         'inx :x
-         'iny :y}))
+        {'*asm-inc :a
+         '*asm-inx :x
+         '*asm-iny :y}))
 
     (describe "register transfer operations"
       (map (fn [[op [from-reg to-reg]]]
              (describe (str op)
-               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0)))
-               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 1)))
-               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0x80)))
-               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0)))
+               (check-zero-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0) nil))
+               (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 1) nil))
+               (check-negative-flag-sets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0x80) nil))
+               (check-negative-flag-unsets #((ns-resolve 'clones.cpu op) (assoc %1 from-reg 0) nil))
 
                (it (format "should transfer the value in the %s register to the %s register" (str from-reg) (str to-reg))
-                 (let [new-cpu ((ns-resolve 'clones.cpu op) (assoc cpu from-reg 0x44))]
+                 (let [new-cpu ((ns-resolve 'clones.cpu op) (assoc cpu from-reg 0x44) nil)]
                    (should= (to-reg new-cpu) 0x44)))))
-        {'tax [:a :x]
-         'tay [:a :y]
-         'txa [:x :a]
-         'tya [:y :a]
-         'tsx [:sp :x]
-         'txs [:x :sp]}))
+        {'*asm-tax [:a :x]
+         '*asm-tay [:a :y]
+         '*asm-txa [:x :a]
+         '*asm-tya [:y :a]
+         '*asm-tsx [:sp :x]
+         '*asm-txs [:x :sp]}))
 
     (describe "loading operations"
-      (for [op ['lda 'ldx 'ldy]]
+      (for [op ['*asm-lda '*asm-ldx '*asm-ldy]]
         (describe (name op)
           (check-zero-flag-sets #((ns-resolve 'clones.cpu op) %1 0))
           (check-zero-flag-unsets #((ns-resolve 'clones.cpu op) %1 1))
@@ -81,17 +81,17 @@
 
       (describe "ldy"
         (it "should load the y register with the argument"
-          (let [new-cpu (ldy cpu 0xbb)]
+          (let [new-cpu (*asm-ldy cpu 0xbb)]
             (should= (:y new-cpu) 0xbb))))
 
       (describe "ldx"
         (it "should load the x register with the argument"
-          (let [new-cpu (ldx cpu 0xbb)]
+          (let [new-cpu (*asm-ldx cpu 0xbb)]
             (should= (:x new-cpu) 0xbb))))
 
       (describe "lda"
         (it "should load the accumulator with the argument"
-          (let [new-cpu (lda cpu 0xbb)]
+          (let [new-cpu (*asm-lda cpu 0xbb)]
             (should= (:a new-cpu) 0xbb)))))
 
     (describe "comparison operations"
@@ -110,127 +110,127 @@
             (let [cpu-with-carry (update-flags cpu overflow-flag)
                   new-cpu ((ns-resolve 'clones.cpu op) cpu-with-carry 0x10)]
               (should-not (carry-flag? new-cpu))))))
-        {'cmp :a
-         'cpx :x
-         'cpy :y}))
+        {'*asm-cmp :a
+         '*asm-cpx :x
+         '*asm-cpy :y}))
 
     (describe "logical operations"
       (describe "bit"
-        (check-zero-flag-sets #(bit %1 0))
-        (check-zero-flag-unsets #(bit (assoc %1 :a 1) 1))
-        (check-negative-flag-sets #(bit (assoc %1 :a 0x80) 0x80))
-        (check-negative-flag-unsets #(bit %1 0))
+        (check-zero-flag-sets #(*asm-bit %1 0))
+        (check-zero-flag-unsets #(*asm-bit (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(*asm-bit (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(*asm-bit %1 0))
 
         (it "should set the overflow flag when the 6th bit of the result is set"
-          (let [new-cpu (bit (assoc cpu :a 0x40) 0x40)]
+          (let [new-cpu (*asm-bit (assoc cpu :a 0x40) 0x40)]
             (should (overflow-flag? new-cpu))))
 
         (it "should unset the overflow flag when the 6th bit of the result is unset"
-          (let [new-cpu (bit (update-flags cpu overflow-flag) 0)]
+          (let [new-cpu (*asm-bit (update-flags cpu overflow-flag) 0)]
             (should-not (overflow-flag? new-cpu)))))
 
       (describe "eor"
-        (check-zero-flag-sets #(eor %1 0))
-        (check-zero-flag-unsets #(eor (assoc %1 :a 1) 0))
-        (check-negative-flag-sets #(eor (assoc %1 :a 0x80) 0))
-        (check-negative-flag-unsets #(eor %1 0)))
+        (check-zero-flag-sets #(*asm-eor %1 0))
+        (check-zero-flag-unsets #(*asm-eor (assoc %1 :a 1) 0))
+        (check-negative-flag-sets #(*asm-eor (assoc %1 :a 0x80) 0))
+        (check-negative-flag-unsets #(*asm-eor %1 0)))
 
       (describe "ora"
-        (check-zero-flag-sets #(ora %1 0))
-        (check-zero-flag-unsets #(ora (assoc %1 :a 1) 1))
-        (check-negative-flag-sets #(ora (assoc %1 :a 0x80) 0x80))
-        (check-negative-flag-unsets #(ora %1 0))
+        (check-zero-flag-sets #(*asm-ora %1 0))
+        (check-zero-flag-unsets #(*asm-ora (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(*asm-ora (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(*asm-ora %1 0))
 
         (it "should or the argument with the accumulator"
-          (let [new-cpu (ora cpu 0xa5)]
+          (let [new-cpu (*asm-ora cpu 0xa5)]
             (should= (:a new-cpu) 0xa5))))
 
-      (describe "and*"
-        (check-zero-flag-sets #(and* %1 0))
-        (check-zero-flag-unsets #(and* (assoc %1 :a 1) 1))
-        (check-negative-flag-sets #(and* (assoc %1 :a 0x80) 0x80))
-        (check-negative-flag-unsets #(and* %1 0))
+      (describe "and"
+        (check-zero-flag-sets #(*asm-and %1 0))
+        (check-zero-flag-unsets #(*asm-and (assoc %1 :a 1) 1))
+        (check-negative-flag-sets #(*asm-and (assoc %1 :a 0x80) 0x80))
+        (check-negative-flag-unsets #(*asm-and %1 0))
 
         (it "should and the argument with the accumulator"
-          (let [new-cpu (and* (assoc cpu :a 0xff) 0xa5)]
+          (let [new-cpu (*asm-and (assoc cpu :a 0xff) 0xa5)]
             (should= (:a new-cpu) 0xa5)))))
 
     (describe "sbc"
-      (check-zero-flag-sets #(sbc (assoc %1 :a 1) 0))
-      (check-zero-flag-unsets #(sbc %1 1))
-      (check-negative-flag-sets #(sbc %1 0))
-      (check-negative-flag-unsets #(sbc %1 0xff))
+      (check-zero-flag-sets #(*asm-sbc (assoc %1 :a 1) 0))
+      (check-zero-flag-unsets #(*asm-sbc %1 1))
+      (check-negative-flag-sets #(*asm-sbc %1 0))
+      (check-negative-flag-unsets #(*asm-sbc %1 0xff))
 
       (it "should set the carry flag when the result is an unsigned underflow"
-        (let [new-cpu (sbc (assoc cpu :a 0) 1)]
+        (let [new-cpu (*asm-sbc (assoc cpu :a 0) 1)]
           (should (carry-flag? new-cpu))))
 
       (it "should unset the carry flag when the result is not an unsigned underflow"
         (let [cpu-with-carry (update-flags (assoc cpu :a 1) carry-flag)
-              new-cpu (sbc cpu-with-carry 0)]
+              new-cpu (*asm-sbc cpu-with-carry 0)]
           (should-not (carry-flag? new-cpu))))
 
       (it "should set the overflow flag when subtracting a negative from a positive yields a negative"
         (let [cpu-with-carry (update-flags cpu carry-flag)
-              new-cpu (sbc cpu-with-carry 0x80)]
+              new-cpu (*asm-sbc cpu-with-carry 0x80)]
           (should (overflow-flag? new-cpu))))
 
       (it "should set the overflow flag when subtracting a positive from a negative yields a positive"
-        (let [new-cpu (sbc (assoc cpu :a 0x80) 0x0f)]
+        (let [new-cpu (*asm-sbc (assoc cpu :a 0x80) 0x0f)]
           (should (overflow-flag? new-cpu))))
 
       (context "when the carry flag is clear"
         (it "should subtract the argument and an additional 1 from the accumulator"
-          (let [new-cpu (sbc (assoc cpu :a 0xff) 0)]
+          (let [new-cpu (*asm-sbc (assoc cpu :a 0xff) 0)]
             (should= (:a new-cpu) 0xfe))))
 
       (context "when the carry flag is set"
         (it "should subtract the argument from the accumulator"
-          (let [new-cpu (sbc (assoc cpu-with-carry :a 0xff) 1)]
+          (let [new-cpu (*asm-sbc (assoc cpu-with-carry :a 0xff) 1)]
             (should= (:a new-cpu) 0xfe)))
 
         (it "should overflow if the subtraction would be less than 0"
-          (let [new-cpu (sbc cpu-with-carry 1)]
+          (let [new-cpu (*asm-sbc cpu-with-carry 1)]
             (should= (:a new-cpu) 0xff)))))
 
     (describe "adc"
       (it "should overflow if the addition would exceed 0xff"
-        (let [new-cpu (adc (assoc cpu :a 0xff) 1)]
+        (let [new-cpu (*asm-adc (assoc cpu :a 0xff) 1)]
           (should= (:a new-cpu) 0)))
 
       (it "should set the carry flag when the result is an unsigned overflow"
-        (let [new-cpu (adc (assoc cpu :a 0xff) 1)]
+        (let [new-cpu (*asm-adc (assoc cpu :a 0xff) 1)]
           (should (carry-flag? new-cpu))))
 
       (it "should unset the carry flag when the result isn't an unsigned overflow"
-        (let [new-cpu (adc (update-flags cpu carry-flag) 1)]
+        (let [new-cpu (*asm-adc (update-flags cpu carry-flag) 1)]
           (should-not (carry-flag? new-cpu))))
 
-      (check-zero-flag-sets #(adc %1 0))
-      (check-zero-flag-unsets #(adc %1 1))
-      (check-negative-flag-sets #(adc %1 0x80))
-      (check-negative-flag-unsets #(adc %1 0))
+      (check-zero-flag-sets #(*asm-adc %1 0))
+      (check-zero-flag-unsets #(*asm-adc %1 1))
+      (check-negative-flag-sets #(*asm-adc %1 0x80))
+      (check-negative-flag-unsets #(*asm-adc %1 0))
 
       (it "should set the overflow flag when adding two positives yields a negative"
         (let [cpu (merge cpu {:a 0x79})
-              new-cpu (adc cpu 0x79)]
+              new-cpu (*asm-adc cpu 0x79)]
           (should (overflow-flag? new-cpu))))
 
       (it "should set the overflow flag when adding two negatives yields a positive"
         (let [cpu (merge cpu {:a 0x80})
-              new-cpu (adc cpu 0x80)]
+              new-cpu (*asm-adc cpu 0x80)]
           (should (overflow-flag? new-cpu))))
 
       (context "when the carry flag is clear"
         (it "should add the argument to the accumulator"
-          (let [new-cpu (adc cpu 1)]
+          (let [new-cpu (*asm-adc cpu 1)]
             (should= (:a new-cpu) 1))))
 
       (context "when the carry flag is set"
         (it "should add an additional 1 to the result"
-          (let [new-cpu (adc cpu-with-carry 0)]
+          (let [new-cpu (*asm-adc cpu-with-carry 0)]
             (should= (:a new-cpu) 1)))
 
         (it "should unset the carry flag"
-          (let [new-cpu (adc cpu-with-carry 1)]
+          (let [new-cpu (*asm-adc cpu-with-carry 1)]
             (should-not (carry-flag? new-cpu))))))))

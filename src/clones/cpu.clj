@@ -35,6 +35,12 @@
 (defn overflow-flag? [cpu] (flag? (:p cpu) overflow-flag))
 (defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
 
+(defmacro defasm [op-name action]
+  (let [fn-args (vector 'cpu 'arg)]
+    `(defn ~(symbol (str "*asm-" (name op-name)))
+       ~fn-args
+       ~action)))
+
 ;; Comparison operations
 (defn compare-op
   [cpu arg reg]
@@ -48,9 +54,9 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:p new-flags})))
 
-(defn cmp [cpu arg] (compare-op cpu arg :a))
-(defn cpx [cpu arg] (compare-op cpu arg :x))
-(defn cpy [cpu arg] (compare-op cpu arg :y))
+(defasm cmp (compare-op cpu arg :a))
+(defasm cpx (compare-op cpu arg :x))
+(defasm cpy (compare-op cpu arg :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?
@@ -80,8 +86,7 @@
         true
         false))))
 
-(defn adc
-  [cpu arg]
+(defasm adc
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (+ (:a cpu) arg 1)
                  (+ (:a cpu) arg)))
@@ -95,8 +100,7 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
 
-(defn sbc
-  [cpu arg]
+(defasm sbc
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (- (:a cpu) arg)
                  (- (:a cpu) arg 1)))
@@ -120,11 +124,11 @@
         new-flags (set-flags flags updates)]
     (merge cpu {:a result :p new-flags})))
 
-(defn and* [cpu arg] (logical-op cpu arg bit-and))
-(defn ora [cpu arg] (logical-op cpu arg bit-or))
-(defn eor [cpu arg] (logical-op cpu arg bit-xor))
-(defn bit
-  [cpu arg]
+(defasm and (logical-op cpu arg bit-and))
+(defasm ora (logical-op cpu arg bit-or))
+(defasm eor (logical-op cpu arg bit-xor))
+
+(defasm bit
   (let [result (unsigned-byte (bit-and (:a cpu) arg))
         flags (:p cpu)
         updates {zero-flag (zero? result)
@@ -143,9 +147,9 @@
         new-flags (set-flags flags updates)]
   (merge cpu {reg result :p new-flags})))
 
-(defn lda [cpu arg] (load-op cpu arg :a))
-(defn ldx [cpu arg] (load-op cpu arg :x))
-(defn ldy [cpu arg] (load-op cpu arg :y))
+(defasm lda (load-op cpu arg :a))
+(defasm ldx (load-op cpu arg :x))
+(defasm ldy (load-op cpu arg :y))
 
 ;; Register transfers
 (defn transfer-reg-op
@@ -157,12 +161,12 @@
         new-flags (set-flags flags updates)]
   (merge cpu {to result :p new-flags})))
 
-(defn tax [cpu] (transfer-reg-op cpu :a :x))
-(defn tay [cpu] (transfer-reg-op cpu :a :y))
-(defn txa [cpu] (transfer-reg-op cpu :x :a))
-(defn tya [cpu] (transfer-reg-op cpu :y :a))
-(defn tsx [cpu] (transfer-reg-op cpu :sp :x))
-(defn txs [cpu] (transfer-reg-op cpu :x :sp))
+(defasm tax (transfer-reg-op cpu :a :x))
+(defasm tay (transfer-reg-op cpu :a :y))
+(defasm txa (transfer-reg-op cpu :x :a))
+(defasm tya (transfer-reg-op cpu :y :a))
+(defasm tsx (transfer-reg-op cpu :sp :x))
+(defasm txs (transfer-reg-op cpu :x :sp))
 
 ;; Increment & decrements
 (defn increment-op
@@ -174,9 +178,9 @@
         new-flags (set-flags flags updates)]
   (merge cpu {reg result :p new-flags})))
 
-(defn inc [cpu] (increment-op cpu :a))
-(defn inx [cpu] (increment-op cpu :x))
-(defn iny [cpu] (increment-op cpu :y))
+(defasm inc (increment-op cpu :a))
+(defasm inx (increment-op cpu :x))
+(defasm iny (increment-op cpu :y))
 
 (defn decrement-op
   [cpu reg]
@@ -187,6 +191,6 @@
         new-flags (set-flags flags updates)]
   (merge cpu {reg result :p new-flags})))
 
-(defn dec [cpu] (decrement-op cpu :a))
-(defn dex [cpu] (decrement-op cpu :x))
-(defn dey [cpu] (decrement-op cpu :y))
+(defasm dec (decrement-op cpu :a))
+(defasm dex (decrement-op cpu :x))
+(defasm dey (decrement-op cpu :y))
