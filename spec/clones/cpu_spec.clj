@@ -5,7 +5,7 @@
 (def cpu (make-cpu))
 (def cpu-with-carry (assoc cpu :p carry-flag))
 
-(describe "The NES CPU"
+(describe "A 6502 CPU"
   (describe "instruction set"
     (defn check-zero-flag-sets [c]
       (it "should set the zero flag when the result is zero"

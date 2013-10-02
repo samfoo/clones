@@ -1,16 +1,20 @@
 (ns clones.cpu)
 
+(defn unsigned-byte [b] (bit-and 0xff b))
 (defn bit-set? [x mask] (= (bit-and x mask) mask))
 
-(defn make-cpu [] {:a 0, :x 0 :y 0, :sp 0 :p 0 :pc 0})
+(defn make-cpu [] {:a 0
+                   :x 0
+                   :y 0
+                   :sp (unsigned-byte 0xfd)
+                   :p 0
+                   :pc 0})
 
 (defn update-flags [cpu new-flags] (assoc cpu :p new-flags))
 
 (defn set-flag [flags mask] (bit-or flags mask))
 (defn unset-flag [flags mask] (bit-and flags (bit-not mask)))
 (defn flag? [flags mask] (bit-set? flags mask))
-
-(defn unsigned-byte [b] (bit-and 0xff b))
 
 (defn set-flags
   [flags items]
