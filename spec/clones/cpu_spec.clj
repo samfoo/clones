@@ -14,7 +14,7 @@
 
     (defn check-zero-flag-unsets [c]
       (it "should unset the zero flag when the result is non-zero"
-        (should-not (zero-flag? (c (update-flags cpu zero-flag))))))
+        (should-not (zero-flag? (c (set-flag cpu zero-flag true))))))
 
     (defn check-negative-flag-sets [c]
       (it "should set the negative flag when the result is negative"
@@ -22,7 +22,7 @@
 
     (defn check-negative-flag-unsets [c]
       (it "should unset the negative flag when the result is non-negative"
-        (should-not (negative-flag? (c (update-flags cpu negative-flag))))))
+        (should-not (negative-flag? (c (set-flag cpu negative-flag true))))))
 
     (defn peek-stack-n [c n]
       (mount-read (:memory c) (+ 0x100 1 n (:sp c))))
@@ -187,7 +187,7 @@
              (should (carry-flag? new-cpu))))
 
          (it (format "should unset the carry flag if the %s register is less than the argument" (str reg))
-           (let [cpu-with-carry (update-flags cpu overflow-flag)
+           (let [cpu-with-carry (set-flag cpu overflow-flag true)
                  new-cpu ((ns-resolve 'clones.cpu op) cpu-with-carry 0x10)]
              (should-not (carry-flag? new-cpu))))))
        {'*asm-cmp :a
@@ -206,7 +206,7 @@
            (should (overflow-flag? new-cpu))))
 
        (it "should unset the overflow flag when the 6th bit of the result is unset"
-         (let [new-cpu (*asm-bit (update-flags cpu overflow-flag) 0)]
+         (let [new-cpu (*asm-bit (set-flag cpu overflow-flag true) 0)]
            (should-not (overflow-flag? new-cpu)))))
 
      (describe "eor"
@@ -246,12 +246,12 @@
          (should (carry-flag? new-cpu))))
 
      (it "should unset the carry flag when the result is not an unsigned underflow"
-       (let [cpu-with-carry (update-flags (assoc cpu :a 1) carry-flag)
+       (let [cpu-with-carry (set-flag (assoc cpu :a 1) carry-flag true)
              new-cpu (*asm-sbc cpu-with-carry 0)]
          (should-not (carry-flag? new-cpu))))
 
      (it "should set the overflow flag when subtracting a negative from a positive yields a negative"
-       (let [cpu-with-carry (update-flags cpu carry-flag)
+       (let [cpu-with-carry (set-flag cpu carry-flag true)
              new-cpu (*asm-sbc cpu-with-carry 0x80)]
          (should (overflow-flag? new-cpu))))
 
@@ -283,7 +283,7 @@
          (should (carry-flag? new-cpu))))
 
      (it "should unset the carry flag when the result isn't an unsigned overflow"
-       (let [new-cpu (*asm-adc (update-flags cpu carry-flag) 1)]
+       (let [new-cpu (*asm-adc (set-flag cpu carry-flag true) 1)]
          (should-not (carry-flag? new-cpu))))
 
      (check-zero-flag-sets #(*asm-adc %1 0))

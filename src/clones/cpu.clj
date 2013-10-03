@@ -11,35 +11,28 @@
                :pc 0}]
     (assoc state :memory (mount-device [] 0 0x1fff {}))))
 
-(defn update-flags [cpu new-flags] (assoc cpu :p new-flags))
-
-(defn set-flag [flags mask] (bit-or flags mask))
-(defn unset-flag [flags mask] (bit-and flags (bit-not mask)))
-(defn flag? [flags mask] (bit-set? flags mask))
-
-(defn set-flags
-  [flags items]
-  (reduce (fn [memo, pair]
-    (let [matches? (second pair)
-          flag (first pair)]
-      (if matches?
-        (set-flag memo flag)
-        (unset-flag memo flag))))
-    flags
-    items))
-
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
 (def carry-flag 0x01)
 (def zero-flag 0x02)
+(def interrupt-flag 0x04)
+(def decimal-flag 0x08)
 (def break-flag 0x10)
+(def unused-flag 0x20)
 (def overflow-flag 0x40)
 (def negative-flag 0x80)
 
+(defn flag? [flags mask] (bit-set? flags mask))
 (defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
 (defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
 (defn overflow-flag? [cpu] (flag? (:p cpu) overflow-flag))
 (defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
+
+(defn set-flag [cpu flag v]
+  (let [flags (:p cpu)]
+    (if v
+      (assoc cpu :p (bit-or flags flag))
+      (assoc cpu :p (bit-and flags (bit-not flag))))))
 
 (defmacro defasm [op-name action]
   (let [fn-args (vector 'cpu 'arg)]
@@ -52,13 +45,11 @@
   [cpu arg reg]
   (let [result (unsigned-byte (- (reg cpu) arg))
         register (unsigned-byte (reg cpu))
-        value (unsigned-byte arg)
-        flags (:p cpu)
-        updates {carry-flag (>= register value)
-                 negative-flag (negative? result)
-                 zero-flag (zero? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:p new-flags})))
+        value (unsigned-byte arg)]
+    (-> cpu
+      (set-flag carry-flag (>= register value))
+      (set-flag negative-flag (negative? result))
+      (set-flag zero-flag (zero? result)))))
 
 (defasm cmp (compare-op cpu arg :a))
 (defasm cpx (compare-op cpu arg :x))
@@ -96,39 +87,36 @@
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (+ (:a cpu) arg 1)
                  (+ (:a cpu) arg)))
-        flags (:p cpu)
         carried? (< result (:a cpu))
-        overflowed? (add-overflowed? (:a cpu) arg result)
-        updates {carry-flag carried?
-                 overflow-flag overflowed?
-                 negative-flag (negative? result)
-                 zero-flag (zero? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:a result :p new-flags})))
+        overflowed? (add-overflowed? (:a cpu) arg result)]
+    (-> cpu
+      (set-flag carry-flag carried?)
+      (set-flag overflow-flag overflowed?)
+      (set-flag negative-flag (negative? result))
+      (set-flag zero-flag (zero? result))
+      (assoc :a result))))
 
 (defasm sbc
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (- (:a cpu) arg)
                  (- (:a cpu) arg 1)))
-        flags (:p cpu)
         carried? (> result (:a cpu))
-        overflowed? (subtract-overflowed? (:a cpu) arg result)
-        updates {carry-flag carried?
-                 overflow-flag overflowed?
-                 negative-flag (negative? result)
-                 zero-flag (zero? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:a result :p new-flags})))
+        overflowed? (subtract-overflowed? (:a cpu) arg result)]
+    (-> cpu
+      (set-flag carry-flag carried?)
+      (set-flag overflow-flag overflowed?)
+      (set-flag negative-flag (negative? result))
+      (set-flag zero-flag (zero? result))
+      (assoc :a result))))
 
 ;; Logical operations
 (defn logical-op
   [cpu arg method]
-  (let [result (unsigned-byte (method (:a cpu) arg))
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:a result :p new-flags})))
+  (let [result (unsigned-byte (method (:a cpu) arg))]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result))
+      (assoc :a result))))
 
 (defasm and (logical-op cpu arg bit-and))
 (defasm ora (logical-op cpu arg bit-or))
@@ -136,22 +124,20 @@
 
 (defasm bit
   (let [result (unsigned-byte (bit-and (:a cpu) arg))
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 overflow-flag (== 0x40 (bit-and result 0x40))
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-    (merge cpu {:p new-flags})))
+        overflowed? (== 0x40 (bit-and result 0x40))]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag overflow-flag overflowed?)
+      (set-flag negative-flag (negative? result)))))
 
 ;; Load operations
 (defn load-op
   [cpu arg reg]
-  (let [result (unsigned-byte arg)
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-  (merge cpu {reg result :p new-flags})))
+  (let [result (unsigned-byte arg)]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result))
+      (assoc reg result))))
 
 (defasm lda (load-op cpu arg :a))
 (defasm ldx (load-op cpu arg :x))
@@ -160,12 +146,11 @@
 ;; Register transfers
 (defn transfer-reg-op
   [cpu from to]
-  (let [result (from cpu)
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-  (merge cpu {to result :p new-flags})))
+  (let [result (from cpu)]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result))
+      (assoc to result))))
 
 (defasm tax (transfer-reg-op cpu :a :x))
 (defasm tay (transfer-reg-op cpu :a :y))
@@ -177,12 +162,11 @@
 ;; Increment & decrements
 (defn increment-op
   [cpu reg]
-  (let [result (unsigned-byte (+ (reg cpu) 1))
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-  (merge cpu {reg result :p new-flags})))
+  (let [result (unsigned-byte (inc (reg cpu)))]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result))
+      (assoc reg result))))
 
 (defasm inc (increment-op cpu :a))
 (defasm inx (increment-op cpu :x))
@@ -190,12 +174,11 @@
 
 (defn decrement-op
   [cpu reg]
-  (let [result (unsigned-byte (- (reg cpu) 1))
-        flags (:p cpu)
-        updates {zero-flag (zero? result)
-                 negative-flag (negative? result)}
-        new-flags (set-flags flags updates)]
-  (merge cpu {reg result :p new-flags})))
+  (let [result (unsigned-byte (dec (reg cpu)))]
+    (-> cpu
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result))
+      (assoc reg result))))
 
 (defasm dec (decrement-op cpu :a))
 (defasm dex (decrement-op cpu :x))
@@ -216,18 +199,16 @@
 
 (defasm pla
   (let [pulled (pull cpu :a)
-        flags (:p cpu)
-        updates {zero-flag (zero? (:a pulled))
-                 negative-flag (negative? (:a pulled))}
-        new-flags (set-flags flags updates)]
-    (assoc pulled :p new-flags)))
+        result (:a pulled)]
+    (-> pulled
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result)))))
 
 (defasm plp
-  (let [pulled (pull cpu :p)
-        flags (:p pulled)
-        flags-without-break (bit-clear flags 4)
-        new-flags (bit-set flags-without-break 5)]
-    (assoc pulled :p new-flags)))
+  (let [pulled (pull cpu :p)]
+    (-> pulled
+      (set-flag break-flag false)
+      (set-flag unused-flag true))))
 
 ;; Jumps and calls
 (defasm jmp (assoc cpu :pc arg))
