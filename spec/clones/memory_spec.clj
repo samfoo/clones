@@ -5,18 +5,32 @@
 (def mounts [])
 
 (describe "Mountable memory"
-  (describe "mount-read"
-    (it "should translate the address passed to the device's read function to be relative to the mount point"
-      (let [new-mounts (mount-device mounts 0x1000 0x1999 {})]
-        (should= 0 (mount-read new-mounts 0x1000))))
+  (describe "reading & writing"
+    (it "should translate the address passed to the device's read/write function to be relative to the mount point"
+      (let [initial (mount-device mounts 0x1000 0x1999 {})
+            after-write (mount-write initial 0xbe 0x1000)
+            device (:device (first after-write))]
+        (should= 0xbe (mount-read after-write 0x1000))
+        (should= 0xbe (get device 0))))
 
-    (it "should raise an error trying to read from a location with no device"
-      (should-throw Error "No device is mounted at 0x0000, current devices: []"
-        (mount-read mounts 0x0000))))
+    (describe "mount-write"
+      (it "should raise an error trying to write to a location with no device"
+        (should-throw Error "No device is mounted at 0x0000, current devices: []"
+          (mount-write mounts 0xbe 0x0000)))
 
-    (it "should read from the correct mount point"
-      (let [new-mounts (mount-device mounts 0x0000 0x0999 {1 :read-byte})]
-        (should= :read-byte (mount-read new-mounts 1)))))
+      (it "should write to the correct mount point"
+        (let [initial (mount-device mounts 0x0000 0x0999 {})
+              after-write (mount-write initial 0xbe 0x100)]
+          (should= 0xbe (mount-read after-write 0x100)))))
+
+    (describe "mount-read"
+      (it "should raise an error trying to read from a location with no device"
+        (should-throw Error "No device is mounted at 0x0000, current devices: []"
+          (mount-read mounts 0x0000)))
+
+      (it "should read from the correct mount point"
+        (let [new-mounts (mount-device mounts 0x0000 0x0999 {1 :read-byte})]
+          (should= :read-byte (mount-read new-mounts 1))))))
 
   (describe "mount-find"
     (it "should return nil if no mount matches the address"
@@ -34,4 +48,4 @@
 
     (it "should mount a device with a start and end memory point"
       (let [new-mounts (mount-device mounts 0x0000 0x0999 {})]
-        (should= new-mounts '({:start 0x0000 :end 0x0999 :device {}})))))
+        (should= new-mounts '({:start 0x0000 :end 0x0999 :device {}}))))))
