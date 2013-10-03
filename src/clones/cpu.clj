@@ -34,7 +34,7 @@
 
 (def carry-flag 0x01)
 (def zero-flag 0x02)
-(def decimal-flag 0x10)
+(def break-flag 0x10)
 (def overflow-flag 0x40)
 (def negative-flag 0x80)
 
@@ -211,3 +211,22 @@
 
 (defasm pha (push cpu (:a cpu)))
 (defasm php (push cpu (bit-or 0x10 (:p cpu))))
+
+(defn pull [cpu reg]
+  (let [v (mount-read (:memory cpu) (+ 1 (:sp cpu)))]
+    (merge cpu {reg v :sp (dec (:sp cpu))})))
+
+(defasm pla
+  (let [pulled (pull cpu :a)
+        flags (:p cpu)
+        updates {zero-flag (zero? (:a pulled))
+                 negative-flag (negative? (:a pulled))}
+        new-flags (set-flags flags updates)]
+    (assoc pulled :p new-flags)))
+
+(defasm plp
+  (let [pulled (pull cpu :p)
+        flags (:p pulled)
+        flags-without-break (bit-clear flags 4)
+        new-flags (bit-set flags-without-break 5)]
+    (assoc pulled :p new-flags)))

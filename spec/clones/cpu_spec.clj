@@ -25,19 +25,46 @@
         (should-not (negative-flag? (c (update-flags cpu negative-flag))))))
 
   (describe "stack operations"
+    (defn with-stack-top [cpu v]
+      (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
+        (merge cpu {:memory stack-with-value :sp 0x1fc})))
+
+    (describe "plp"
+      (it "should pull the 5th bit as 1, no matter what"
+        (let [new-cpu (*asm-plp (with-stack-top cpu 0x00) nil)]
+          (should= 0x20 (:p new-cpu))))
+
+      (it "should pull the break flag as 0, no matter what"
+        (let [new-cpu (*asm-plp (with-stack-top cpu 0xff) nil)]
+          (should= 0xef (:p new-cpu))))
+
+      (it "should pull the top of the stack into the flags register"
+        (let [new-cpu (*asm-plp (with-stack-top cpu 0x21) nil)]
+          (should= 0x21 (:p new-cpu)))))
+
+    (describe "pla"
+      (check-zero-flag-sets #(*asm-pla (with-stack-top % 0x00) nil))
+      (check-zero-flag-unsets #(*asm-pla (with-stack-top % 0x01) nil))
+      (check-negative-flag-sets #(*asm-pla (with-stack-top % 0x80) nil))
+      (check-negative-flag-unsets #(*asm-pla (with-stack-top % 0x00) nil))
+
+      (it "should pull the top of the stack into the accumulator"
+        (let [new-cpu (*asm-pla (with-stack-top cpu 0xff) nil)]
+          (should= 0xff (:a new-cpu)))))
+
     (describe "php"
-      (it "should always push decimal mode as 1, not matter what"
+      (it "should always push the break flag as 1"
         ;; NOTE: This is only in the NES's 6502... should there be a way of
         ;; setting it so that the CPU can behave either way?
         (let [new-cpu (*asm-php cpu nil)
               stack-top (mount-read (:memory new-cpu) 0x1fd)]
           (should= 0 (:p cpu))
-          (should= decimal-flag stack-top)))
+          (should= break-flag stack-top)))
 
       (it "should push processor flags to the stack"
         (let [new-cpu (*asm-php cpu-with-carry nil)
               stack-top (mount-read (:memory new-cpu) 0x1fd)]
-          (should= (bit-or carry-flag decimal-flag) stack-top))))
+          (should= (bit-or carry-flag break-flag) stack-top))))
 
     (describe "pha"
       (it "should wrap the stack pointer to 0xff if it is 0x00"
