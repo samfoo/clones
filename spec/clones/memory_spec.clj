@@ -11,7 +11,7 @@
         (should= 0 (mount-read new-mounts 0x1000))))
 
     (it "should raise an error trying to read from a location with no device"
-      (should-throw Error "No device is mounted to handle 0x0000, current devices ()"
+      (should-throw Error "No device is mounted at 0x0000, current devices: []"
         (mount-read mounts 0x0000))))
 
     (it "should read from the correct mount point"
@@ -29,7 +29,7 @@
   (describe "mount-device"
     (it "should raise an error trying to mount to a range that already has a device"
       (let [new-mounts (mount-device mounts 0x0000 0x0999 {})]
-        (should-throw Error "Device already mounted, current devices ({:end 2457, :start 0})"
+        (should-throw Error "Device already mounted at 0x0999 to 0x5000, current devices: [{:end 2457, :start 0}]"
           (mount-device new-mounts 0x0999 0x5000 {}))))
 
     (it "should mount a device with a start and end memory point"

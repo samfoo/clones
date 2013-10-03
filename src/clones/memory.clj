@@ -1,5 +1,6 @@
 (ns clones.memory
-  (:require [clojure.pprint :refer :all]))
+  (:require [clojure.pprint :refer :all]
+            [clojure.string :refer :all]))
 
 (defprotocol Device
   "A memory mapped I/O device that can be read from or written to."
@@ -26,15 +27,21 @@
 (defn mount-exists? [mounts m]
   (some #(mounts-overlap? m %) mounts))
 
+(defn mount-str [mount]
+  (pr-str (merge (select-keys mount [:start :end]) (meta mount))))
+
 (defn mounts-str [mounts]
-  (pr-str (map #(select-keys % [:start, :end]) mounts)))
+  (join ", " (map mount-str mounts)))
 
 (defn mount-device
   [mounts start-addr end-addr device]
   (let [m {:start start-addr :end end-addr :device device}
         overlaps? (mount-exists? mounts m)]
     (if overlaps?
-      (throw (Error.  (format "Device already mounted, current devices %s" (mounts-str mounts))))
+      (throw (Error.
+               (format "Device already mounted at 0x%04X to 0x%04x, current devices: [%s]"
+                       start-addr end-addr
+                       (mounts-str mounts))))
       (concat mounts [m]))))
 
 (defn mount-find [mounts addr]
@@ -44,6 +51,6 @@
 (defn mount-read [mounts addr]
   (let [mount (mount-find mounts addr)]
     (if (nil? mount)
-      (throw (Error. (format "No device is mounted to handle 0x%04X, current devices %s" addr (mounts-str mounts))))
+      (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
       (read-device (:device mount) (- addr (:start mount))))))
 
