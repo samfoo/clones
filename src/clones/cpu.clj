@@ -1,14 +1,17 @@
-(ns clones.cpu)
+(ns clones.cpu
+  (:require [clones.memory :refer :all]))
 
 (defn unsigned-byte [b] (bit-and 0xff b))
 (defn bit-set? [x mask] (= (bit-and x mask) mask))
 
-(defn make-cpu [] {:a 0
-                   :x 0
-                   :y 0
-                   :sp (unsigned-byte 0xfd)
-                   :p 0
-                   :pc 0})
+(defn make-cpu []
+  (let [state {:a 0
+               :x 0
+               :y 0
+               :sp (unsigned-byte 0xfd)
+               :p 0
+               :pc 0}]
+    (assoc state :memory (mount-device [] 0 0x1fff {}))))
 
 (defn update-flags [cpu new-flags] (assoc cpu :p new-flags))
 
@@ -31,6 +34,7 @@
 
 (def carry-flag 0x01)
 (def zero-flag 0x02)
+(def decimal-flag 0x10)
 (def overflow-flag 0x40)
 (def negative-flag 0x80)
 
@@ -198,3 +202,12 @@
 (defasm dec (decrement-op cpu :a))
 (defasm dex (decrement-op cpu :x))
 (defasm dey (decrement-op cpu :y))
+
+;; Stack pushing and popping
+(defn push [cpu v]
+  (let [mem (mount-write (:memory cpu) v (+ 0x0100 (:sp cpu)))
+        new-sp (unsigned-byte (dec (:sp cpu)))]
+    (merge cpu {:memory mem :sp new-sp})))
+
+(defasm pha (push cpu (:a cpu)))
+(defasm php (push cpu (bit-or 0x10 (:p cpu))))
