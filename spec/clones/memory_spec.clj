@@ -1,4 +1,4 @@
-(ns clones.cpu-spec
+(ns clones.memory-spec
   (:require [speclj.core   :refer :all]
             [clones.memory :refer :all]))
 

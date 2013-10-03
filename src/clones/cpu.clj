@@ -1,8 +1,6 @@
 (ns clones.cpu
-  (:require [clones.memory :refer :all]))
-
-(defn unsigned-byte [b] (bit-and 0xff b))
-(defn bit-set? [x mask] (= (bit-and x mask) mask))
+  (:require [clones.memory :refer :all]
+            [clones.byte   :refer :all]))
 
 (defn make-cpu []
   (let [state {:a 0
@@ -230,3 +228,15 @@
         flags-without-break (bit-clear flags 4)
         new-flags (bit-set flags-without-break 5)]
     (assoc pulled :p new-flags)))
+
+;; Jumps and calls
+(defasm jmp (assoc cpu :pc arg))
+(defasm jsr
+  (let [pc (dec (:pc cpu))
+        high (high-byte pc)
+        low  (low-byte pc)]
+    (-> cpu
+      (push high)
+      (push low)
+      (assoc :pc arg))))
+

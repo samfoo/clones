@@ -24,6 +24,27 @@
       (it "should unset the negative flag when the result is non-negative"
         (should-not (negative-flag? (c (update-flags cpu negative-flag))))))
 
+    (defn peek-stack-n [c n]
+      (mount-read (:memory c) (+ 0x100 1 n (:sp c))))
+
+    (defn peek-stack [c] (peek-stack-n c 0))
+
+  (describe "jumps and calls"
+    (describe "jsr"
+      (it "should set the program counter to the argument"
+        (let [new-cpu (*asm-jsr cpu 0xbeef)]
+          (should= 0xbeef (:pc new-cpu))))
+
+      (it "should push the current program counter (minus 1) to the stack"
+        (let [new-cpu (*asm-jsr (assoc cpu :pc 0xffdd) 0)]
+          (should= 0xdc (peek-stack-n new-cpu 0))
+          (should= 0xff (peek-stack-n new-cpu 1)))))
+
+    (describe "jmp"
+      (it "should set the program counter to the argument"
+        (let [new-cpu (*asm-jmp cpu 0x1000)]
+          (should= 0x1000 (:pc new-cpu))))))
+
   (describe "stack operations"
     (defn with-stack-top [cpu v]
       (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
@@ -57,13 +78,13 @@
         ;; NOTE: This is only in the NES's 6502... should there be a way of
         ;; setting it so that the CPU can behave either way?
         (let [new-cpu (*asm-php cpu nil)
-              stack-top (mount-read (:memory new-cpu) 0x1fd)]
+              stack-top (peek-stack new-cpu)]
           (should= 0 (:p cpu))
           (should= break-flag stack-top)))
 
       (it "should push processor flags to the stack"
         (let [new-cpu (*asm-php cpu-with-carry nil)
-              stack-top (mount-read (:memory new-cpu) 0x1fd)]
+              stack-top (peek-stack new-cpu)]
           (should= (bit-or carry-flag break-flag) stack-top))))
 
     (describe "pha"
@@ -79,7 +100,7 @@
 
       (it "should push the accumulator to the stack"
         (let [new-cpu (*asm-pha (assoc cpu :a 0xbe) nil)
-              stack-top (mount-read (:memory new-cpu) 0x1fd)]
+              stack-top (peek-stack new-cpu)]
           (should= 0xbe stack-top)))))
 
    (describe "decrement operations"
