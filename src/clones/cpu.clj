@@ -25,6 +25,8 @@
 (defn flag? [flags mask] (bit-set? flags mask))
 (defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
 (defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
+(defn decimal-flag? [cpu] (flag? (:p cpu) decimal-flag))
+(defn interrupt-flag? [cpu] (flag? (:p cpu) interrupt-flag))
 (defn overflow-flag? [cpu] (flag? (:p cpu) overflow-flag))
 (defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
 
@@ -254,3 +256,12 @@
 (defasm bpl (branch-if cpu (not (negative-flag? cpu)) arg))
 (defasm bvc (branch-if cpu (not (overflow-flag? cpu)) arg))
 (defasm bvs (branch-if cpu (overflow-flag? cpu) arg))
+
+;; Status flag changes
+(defasm clc (set-flag cpu carry-flag false))
+(defasm cld (set-flag cpu decimal-flag false))
+(defasm cli (set-flag cpu interrupt-flag false))
+(defasm clv (set-flag cpu overflow-flag false))
+(defasm sec (set-flag cpu carry-flag true))
+(defasm sed (set-flag cpu decimal-flag true))
+(defasm sei (set-flag cpu interrupt-flag true))

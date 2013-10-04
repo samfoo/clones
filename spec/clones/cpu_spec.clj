@@ -7,6 +7,8 @@
 (def cpu-with-carry (assoc cpu :p carry-flag))
 (def cpu-with-zero (assoc cpu :p zero-flag))
 (def cpu-with-negative (assoc cpu :p negative-flag))
+(def cpu-with-decimal (assoc cpu :p decimal-flag))
+(def cpu-with-interrupt (assoc cpu :p interrupt-flag))
 (def cpu-with-overflow (assoc cpu :p overflow-flag))
 
 (describe "A 6502 CPU"
@@ -40,6 +42,35 @@
       (it desc
         (should= 0 (:pc (f should-not-branch 0xffff)))
         (should= 0xffff (:pc (f should-branch 0xffff)))))
+
+    (describe "status flag changes"
+      (describe "sei"
+        (it "should set the interrupt flag"
+          (should= true (interrupt-flag? (*asm-sei cpu nil)))))
+
+      (describe "sed"
+        (it "should set the decimal flag"
+          (should= true (decimal-flag? (*asm-sed cpu nil)))))
+
+      (describe "sec"
+        (it "should set the carry flag"
+          (should= true (carry-flag? (*asm-sec cpu nil)))))
+
+      (describe "clv"
+        (it "should clear the overflow flag"
+          (should= false (overflow-flag? (*asm-clv cpu-with-overflow nil)))))
+
+      (describe "cli"
+        (it "should clear the interrupt flag"
+          (should= false (interrupt-flag? (*asm-cli cpu-with-interrupt nil)))))
+
+      (describe "cld"
+        (it "should clear the decimal flag"
+          (should= false (decimal-flag? (*asm-cld cpu-with-decimal nil)))))
+
+      (describe "clc"
+        (it "should clear the carry flag"
+          (should= false (carry-flag? (*asm-clc cpu-with-carry nil))))))
 
     (describe "branching"
       (describe "bvs"
