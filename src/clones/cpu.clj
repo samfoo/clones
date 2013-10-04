@@ -186,7 +186,7 @@
 
 ;; Stack pushing and popping
 (defn push [cpu v]
-  (let [mem (mount-write (:memory cpu) v (+ 0x0100 (:sp cpu)))
+  (let [mem (mount-write (:memory cpu) v (+ 0x100 (:sp cpu)))
         new-sp (unsigned-byte (dec (:sp cpu)))]
     (merge cpu {:memory mem :sp new-sp})))
 
@@ -194,8 +194,21 @@
 (defasm php (push cpu (bit-or 0x10 (:p cpu))))
 
 (defn pull [cpu reg]
-  (let [v (mount-read (:memory cpu) (+ 1 (:sp cpu)))]
-    (merge cpu {reg v :sp (dec (:sp cpu))})))
+  (let [v (mount-read (:memory cpu) (+ 0x100 1 (:sp cpu)))]
+    (merge cpu {reg v :sp (inc (:sp cpu))})))
+
+(defn pull-pc [cpu]
+  (let [stack (:memory cpu)
+        low (mount-read stack (+ 0x100 1 (:sp cpu)))
+        high (bit-shift-left (mount-read stack (+ 0x100 2 (:sp cpu))) 8)
+        new-pc (bit-or low high)]
+    (merge cpu {:pc new-pc :sp (+ 2 (:sp cpu))})))
+
+(defn pull-flags [cpu]
+  (let [pulled (pull cpu :p)]
+    (-> pulled
+      (set-flag break-flag false)
+      (set-flag unused-flag true))))
 
 (defasm pla
   (let [pulled (pull cpu :a)
@@ -204,14 +217,11 @@
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
 
-(defasm plp
-  (let [pulled (pull cpu :p)]
-    (-> pulled
-      (set-flag break-flag false)
-      (set-flag unused-flag true))))
+(defasm plp (pull-flags cpu))
 
 ;; Jumps and calls
 (defasm jmp (assoc cpu :pc arg))
+
 (defasm jsr
   (let [pc (dec (:pc cpu))
         high (high-byte pc)
@@ -221,3 +231,11 @@
       (push low)
       (assoc :pc arg))))
 
+(defasm rti
+  (-> cpu
+    (pull-flags)
+    (pull-pc)))
+
+(defasm rts
+  (let [pulled (pull-pc cpu)]
+    (assoc pulled :pc (inc (:pc pulled)))))

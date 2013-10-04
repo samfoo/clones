@@ -29,7 +29,32 @@
 
     (defn peek-stack [c] (peek-stack-n c 0))
 
+    (defn with-stack-top [cpu v]
+      (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
+        (merge cpu {:memory stack-with-value :sp 0xfc})))
+
     (describe "jumps and calls"
+      (describe "rts"
+        (it "should pull the program counter from the stack and then add one to it"
+          (let [cpu-with-pc (-> cpu
+                              (push 0xff)
+                              (push 0xdd))
+                new-cpu (*asm-rts cpu-with-pc nil)]
+            (should= 0xffde (:pc new-cpu)))))
+
+      (describe "rti"
+        (it "should pull the program counter from the stack after pulling flags"
+          (let [cpu-with-p-and-pc (-> cpu
+                                    (push 0xff)
+                                    (push 0xdd)
+                                    (push 0))
+                new-cpu (*asm-rti cpu-with-p-and-pc nil)]
+            (should= 0xffdd (:pc new-cpu))))
+
+        (it "should pull the flags from the top of the stack (break flag is always 0)"
+          (let [new-cpu (*asm-rti (with-stack-top cpu 0xff) nil)]
+            (should= 0xef (:p new-cpu)))))
+
       (describe "jsr"
         (it "should set the program counter to the argument"
           (let [new-cpu (*asm-jsr cpu 0xbeef)]
@@ -46,10 +71,6 @@
             (should= 0x1000 (:pc new-cpu))))))
 
     (describe "stack operations"
-      (defn with-stack-top [cpu v]
-        (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
-          (merge cpu {:memory stack-with-value :sp 0x1fc})))
-
       (describe "plp"
         (it "should pull the 5th bit as 1, no matter what"
           (let [new-cpu (*asm-plp (with-stack-top cpu 0x00) nil)]
