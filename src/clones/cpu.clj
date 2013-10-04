@@ -239,3 +239,18 @@
 (defasm rts
   (let [pulled (pull-pc cpu)]
     (assoc pulled :pc (inc (:pc pulled)))))
+
+;; Branching
+(defn branch-if [cpu predicate addr]
+  (if predicate
+    (assoc cpu :pc addr)
+    cpu))
+
+(defasm bcc (branch-if cpu (not (carry-flag? cpu)) arg))
+(defasm bcs (branch-if cpu (carry-flag? cpu) arg))
+(defasm beq (branch-if cpu (zero-flag? cpu) arg))
+(defasm bmi (branch-if cpu (negative-flag? cpu) arg))
+(defasm bne (branch-if cpu (not (zero-flag? cpu)) arg))
+(defasm bpl (branch-if cpu (not (negative-flag? cpu)) arg))
+(defasm bvc (branch-if cpu (not (overflow-flag? cpu)) arg))
+(defasm bvs (branch-if cpu (overflow-flag? cpu) arg))

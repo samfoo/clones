@@ -5,6 +5,9 @@
 
 (def cpu (make-cpu))
 (def cpu-with-carry (assoc cpu :p carry-flag))
+(def cpu-with-zero (assoc cpu :p zero-flag))
+(def cpu-with-negative (assoc cpu :p negative-flag))
+(def cpu-with-overflow (assoc cpu :p overflow-flag))
 
 (describe "A 6502 CPU"
   (describe "instruction set"
@@ -32,6 +35,53 @@
     (defn with-stack-top [cpu v]
       (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
         (merge cpu {:memory stack-with-value :sp 0xfc})))
+
+    (defn check-branching [desc f should-branch should-not-branch]
+      (it desc
+        (should= 0 (:pc (f should-not-branch 0xffff)))
+        (should= 0xffff (:pc (f should-branch 0xffff)))))
+
+    (describe "branching"
+      (describe "bvs"
+        (check-branching "should branch when overflow set"
+                         *asm-bvs
+                         cpu-with-overflow
+                         cpu))
+      (describe "bvc"
+        (check-branching "should branch when overflow clear"
+                         *asm-bvc
+                         cpu
+                         cpu-with-overflow))
+      (describe "bpl"
+        (check-branching "should branch when negative clear"
+                         *asm-bpl
+                         cpu
+                         cpu-with-negative))
+      (describe "bne"
+        (check-branching "should branch when zero clear"
+                         *asm-bne
+                         cpu
+                         cpu-with-zero))
+      (describe "bmi"
+        (check-branching "should branch when negative set"
+                         *asm-bmi
+                         cpu-with-negative
+                         cpu))
+      (describe "beq"
+        (check-branching "should branch when zero set"
+                         *asm-beq
+                         cpu-with-zero
+                         cpu))
+      (describe "bcs"
+        (check-branching "should branch when carry set"
+                         *asm-bcs
+                         cpu-with-carry
+                         cpu))
+      (describe "bcc"
+        (check-branching "should branch when carry clear"
+                         *asm-bcc
+                         cpu
+                         cpu-with-carry)))
 
     (describe "jumps and calls"
       (describe "rts"
