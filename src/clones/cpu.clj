@@ -39,61 +39,61 @@
       (assoc cpu :p (bit-or flags flag))
       (assoc cpu :p (bit-and flags (bit-not flag))))))
 
-(defmacro defasm [op-name action]
-  (let [fn-args (vector 'cpu 'arg)]
-    `(defn ~(symbol (str "*asm-" (name op-name)))
+(defmacro defop [op-name action]
+  (let [fn-args (vector 'cpu '& {:keys ['operand] :or {'operand nil}})]
+    `(defn ~(symbol (str "*" (name op-name)))
        ~fn-args
        ~action)))
 
 ;; Comparison operations
 (defn compare-op
-  [cpu arg reg]
-  (let [result (unsigned-byte (- (reg cpu) arg))
+  [cpu operand reg]
+  (let [result (unsigned-byte (- (reg cpu) operand))
         register (unsigned-byte (reg cpu))
-        value (unsigned-byte arg)]
+        value (unsigned-byte operand)]
     (-> cpu
       (set-flag carry-flag (>= register value))
       (set-flag negative-flag (negative? result))
       (set-flag zero-flag (zero? result)))))
 
-(defasm cmp (compare-op cpu arg :a))
-(defasm cpx (compare-op cpu arg :x))
-(defasm cpy (compare-op cpu arg :y))
+(defop cmp (compare-op cpu operand :a))
+(defop cpx (compare-op cpu operand :x))
+(defop cpy (compare-op cpu operand :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?
-  [orig arg result]
+  [orig operand result]
   (let [orig-neg? (bit-set? orig 0x80)
-        arg-neg? (bit-set? arg 0x80)
+        operand-neg? (bit-set? operand 0x80)
         result-neg? (bit-set? result 0x80)]
-    (if (and (not orig-neg?) arg-neg? result-neg?)
+    (if (and (not orig-neg?) operand-neg? result-neg?)
       ;; Subtracting a negative from a positive shouldn't result in a negative
       true
-      (if (and orig-neg? (not arg-neg?) (not result-neg?))
+      (if (and orig-neg? (not operand-neg?) (not result-neg?))
         ;; Subtracking a positive from a negative shouldn't result in a
         ;; positive
         true
         false))))
 
 (defn add-overflowed?
-  [orig arg result]
+  [orig operand result]
   (let [orig-neg? (bit-set? orig 0x80)
-        arg-neg? (bit-set? arg 0x80)
+        operand-neg? (bit-set? operand 0x80)
         result-neg? (bit-set? result 0x80)]
-    (if (and (not orig-neg?) (not arg-neg?) result-neg?)
+    (if (and (not orig-neg?) (not operand-neg?) result-neg?)
       ;; Adding two positives should not result in a negative
       true
-      (if (and orig-neg? arg-neg? (not result-neg?))
+      (if (and orig-neg? operand-neg? (not result-neg?))
         ;; Adding two negatives should not result in a positive
         true
         false))))
 
-(defasm adc
+(defop adc
   (let [result (unsigned-byte (if (carry-flag? cpu)
-                 (+ (:a cpu) arg 1)
-                 (+ (:a cpu) arg)))
+                 (+ (:a cpu) operand 1)
+                 (+ (:a cpu) operand)))
         carried? (< result (:a cpu))
-        overflowed? (add-overflowed? (:a cpu) arg result)]
+        overflowed? (add-overflowed? (:a cpu) operand result)]
     (-> cpu
       (set-flag carry-flag carried?)
       (set-flag overflow-flag overflowed?)
@@ -101,12 +101,12 @@
       (set-flag zero-flag (zero? result))
       (assoc :a result))))
 
-(defasm sbc
+(defop sbc
   (let [result (unsigned-byte (if (carry-flag? cpu)
-                 (- (:a cpu) arg)
-                 (- (:a cpu) arg 1)))
+                 (- (:a cpu) operand)
+                 (- (:a cpu) operand 1)))
         carried? (> result (:a cpu))
-        overflowed? (subtract-overflowed? (:a cpu) arg result)]
+        overflowed? (subtract-overflowed? (:a cpu) operand result)]
     (-> cpu
       (set-flag carry-flag carried?)
       (set-flag overflow-flag overflowed?)
@@ -116,19 +116,19 @@
 
 ;; Logical operations
 (defn logical-op
-  [cpu arg method]
-  (let [result (unsigned-byte (method (:a cpu) arg))]
+  [cpu operand method]
+  (let [result (unsigned-byte (method (:a cpu) operand))]
     (-> cpu
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result))
       (assoc :a result))))
 
-(defasm and (logical-op cpu arg bit-and))
-(defasm ora (logical-op cpu arg bit-or))
-(defasm eor (logical-op cpu arg bit-xor))
+(defop and (logical-op cpu operand bit-and))
+(defop ora (logical-op cpu operand bit-or))
+(defop eor (logical-op cpu operand bit-xor))
 
-(defasm bit
-  (let [result (unsigned-byte (bit-and (:a cpu) arg))
+(defop bit
+  (let [result (unsigned-byte (bit-and (:a cpu) operand))
         overflowed? (== 0x40 (bit-and result 0x40))]
     (-> cpu
       (set-flag zero-flag (zero? result))
@@ -137,16 +137,16 @@
 
 ;; Load operations
 (defn load-op
-  [cpu arg reg]
-  (let [result (unsigned-byte arg)]
+  [cpu operand reg]
+  (let [result (unsigned-byte operand)]
     (-> cpu
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defasm lda (load-op cpu arg :a))
-(defasm ldx (load-op cpu arg :x))
-(defasm ldy (load-op cpu arg :y))
+(defop lda (load-op cpu operand :a))
+(defop ldx (load-op cpu operand :x))
+(defop ldy (load-op cpu operand :y))
 
 ;; Register transfers
 (defn transfer-reg-op
@@ -157,12 +157,12 @@
       (set-flag negative-flag (negative? result))
       (assoc to result))))
 
-(defasm tax (transfer-reg-op cpu :a :x))
-(defasm tay (transfer-reg-op cpu :a :y))
-(defasm txa (transfer-reg-op cpu :x :a))
-(defasm tya (transfer-reg-op cpu :y :a))
-(defasm tsx (transfer-reg-op cpu :sp :x))
-(defasm txs (transfer-reg-op cpu :x :sp))
+(defop tax (transfer-reg-op cpu :a :x))
+(defop tay (transfer-reg-op cpu :a :y))
+(defop txa (transfer-reg-op cpu :x :a))
+(defop tya (transfer-reg-op cpu :y :a))
+(defop tsx (transfer-reg-op cpu :sp :x))
+(defop txs (transfer-reg-op cpu :x :sp))
 
 ;; Increment & decrements
 (defn increment-op
@@ -173,9 +173,9 @@
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defasm inc (increment-op cpu :a))
-(defasm inx (increment-op cpu :x))
-(defasm iny (increment-op cpu :y))
+(defop inc (increment-op cpu :a))
+(defop inx (increment-op cpu :x))
+(defop iny (increment-op cpu :y))
 
 (defn decrement-op
   [cpu reg]
@@ -185,9 +185,9 @@
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defasm dec (decrement-op cpu :a))
-(defasm dex (decrement-op cpu :x))
-(defasm dey (decrement-op cpu :y))
+(defop dec (decrement-op cpu :a))
+(defop dex (decrement-op cpu :x))
+(defop dey (decrement-op cpu :y))
 
 (defn cpu-write [cpu v addr]
   (assoc cpu :memory (mount-write (:memory cpu)
@@ -203,8 +203,8 @@
     (cpu-write v (+ 0x100 (:sp cpu)))
     (assoc :sp (unsigned-byte (dec (:sp cpu))))))
 
-(defasm pha (push cpu (:a cpu)))
-(defasm php (push cpu (bit-or 0x10 (:p cpu))))
+(defop pha (push cpu (:a cpu)))
+(defop php (push cpu (bit-or 0x10 (:p cpu))))
 
 (defn pull [cpu reg]
   (let [v (cpu-read cpu (+ 0x100 1 (:sp cpu)))]
@@ -227,33 +227,33 @@
         low (cpu-read cpu 0xfffe)]
     (bit-or high low)))
 
-(defasm pla
+(defop pla
   (let [pulled (pull cpu :a)
         result (:a pulled)]
     (-> pulled
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
 
-(defasm plp (pull-flags cpu))
+(defop plp (pull-flags cpu))
 
 ;; Jumps and calls
-(defasm jmp (assoc cpu :pc arg))
+(defop jmp (assoc cpu :pc operand))
 
-(defasm jsr
+(defop jsr
   (let [pc (dec (:pc cpu))
         high (high-byte pc)
         low  (low-byte pc)]
     (-> cpu
       (push high)
       (push low)
-      (assoc :pc arg))))
+      (assoc :pc operand))))
 
-(defasm rti
+(defop rti
   (-> cpu
     (pull-flags)
     (pull-pc)))
 
-(defasm rts
+(defop rts
   (let [pulled (pull-pc cpu)]
     (assoc pulled :pc (inc (:pc pulled)))))
 
@@ -263,28 +263,28 @@
     (assoc cpu :pc addr)
     cpu))
 
-(defasm bcc (branch-if cpu (not (carry-flag? cpu)) arg))
-(defasm bcs (branch-if cpu (carry-flag? cpu) arg))
-(defasm beq (branch-if cpu (zero-flag? cpu) arg))
-(defasm bmi (branch-if cpu (negative-flag? cpu) arg))
-(defasm bne (branch-if cpu (not (zero-flag? cpu)) arg))
-(defasm bpl (branch-if cpu (not (negative-flag? cpu)) arg))
-(defasm bvc (branch-if cpu (not (overflow-flag? cpu)) arg))
-(defasm bvs (branch-if cpu (overflow-flag? cpu) arg))
+(defop bcc (branch-if cpu (not (carry-flag? cpu)) operand))
+(defop bcs (branch-if cpu (carry-flag? cpu) operand))
+(defop beq (branch-if cpu (zero-flag? cpu) operand))
+(defop bmi (branch-if cpu (negative-flag? cpu) operand))
+(defop bne (branch-if cpu (not (zero-flag? cpu)) operand))
+(defop bpl (branch-if cpu (not (negative-flag? cpu)) operand))
+(defop bvc (branch-if cpu (not (overflow-flag? cpu)) operand))
+(defop bvs (branch-if cpu (overflow-flag? cpu) operand))
 
 ;; Status flag changes
-(defasm clc (set-flag cpu carry-flag false))
-(defasm cld (set-flag cpu decimal-flag false))
-(defasm cli (set-flag cpu interrupt-flag false))
-(defasm clv (set-flag cpu overflow-flag false))
-(defasm sec (set-flag cpu carry-flag true))
-(defasm sed (set-flag cpu decimal-flag true))
-(defasm sei (set-flag cpu interrupt-flag true))
+(defop clc (set-flag cpu carry-flag false))
+(defop cld (set-flag cpu decimal-flag false))
+(defop cli (set-flag cpu interrupt-flag false))
+(defop clv (set-flag cpu overflow-flag false))
+(defop sec (set-flag cpu carry-flag true))
+(defop sed (set-flag cpu decimal-flag true))
+(defop sei (set-flag cpu interrupt-flag true))
 
 ;; System functions
-(defasm nop cpu)
+(defop nop cpu)
 
-(defasm brk
+(defop brk
   (let [pc (inc (:pc cpu))
         interrupt (interrupt-vector cpu)
         high (high-byte pc)
