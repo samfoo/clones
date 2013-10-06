@@ -3,7 +3,9 @@
             [clones.byte   :refer :all]))
 
 (defmacro defop [op-name action]
-  (let [fn-args (vector 'cpu '& {:keys ['operand] :or {'operand nil}})]
+  (let [fn-args ['cpu '&
+                 {:keys ['operand]
+                  :or {'operand nil}}]]
     `(defn ~(symbol (str "*" (name op-name)))
        ~fn-args
        ~action)))
