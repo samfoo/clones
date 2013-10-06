@@ -2,6 +2,12 @@
   (:require [clones.memory :refer :all]
             [clones.byte   :refer :all]))
 
+(defmacro defop [op-name action]
+  (let [fn-args (vector 'cpu '& {:keys ['operand] :or {'operand nil}})]
+    `(defn ~(symbol (str "*" (name op-name)))
+       ~fn-args
+       ~action)))
+
 (defn make-cpu []
   (let [state {:a 0
                :x 0
@@ -13,6 +19,14 @@
                  (mount-device 0      0x1fff {})
                  (mount-device 0xfffa 0xffff {}))]
     (assoc state :memory memory)))
+
+(defn cpu-write [cpu v addr]
+  (assoc cpu :memory (mount-write (:memory cpu)
+                                  v
+                                  addr)))
+
+(defn cpu-read [cpu addr]
+  (mount-read (:memory cpu) addr))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
@@ -38,12 +52,6 @@
     (if v
       (assoc cpu :p (bit-or flags flag))
       (assoc cpu :p (bit-and flags (bit-not flag))))))
-
-(defmacro defop [op-name action]
-  (let [fn-args (vector 'cpu '& {:keys ['operand] :or {'operand nil}})]
-    `(defn ~(symbol (str "*" (name op-name)))
-       ~fn-args
-       ~action)))
 
 ;; Comparison operations
 (defn compare-op
@@ -188,14 +196,6 @@
 (defop dec (decrement-op cpu :a))
 (defop dex (decrement-op cpu :x))
 (defop dey (decrement-op cpu :y))
-
-(defn cpu-write [cpu v addr]
-  (assoc cpu :memory (mount-write (:memory cpu)
-                                  v
-                                  addr)))
-
-(defn cpu-read [cpu addr]
-  (mount-read (:memory cpu) addr))
 
 ;; Stack pushing and popping
 (defn push [cpu v]
