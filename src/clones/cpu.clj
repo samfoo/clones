@@ -8,8 +8,11 @@
                :y 0
                :sp (unsigned-byte 0xfd)
                :p 0
-               :pc 0}]
-    (assoc state :memory (mount-device [] 0 0x1fff {}))))
+               :pc 0}
+        memory (-> []
+                 (mount-device 0      0x1fff {})
+                 (mount-device 0xfffa 0xffff {}))]
+    (assoc state :memory memory)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
@@ -186,23 +189,30 @@
 (defasm dex (decrement-op cpu :x))
 (defasm dey (decrement-op cpu :y))
 
+(defn cpu-write [cpu v addr]
+  (assoc cpu :memory (mount-write (:memory cpu)
+                                  v
+                                  addr)))
+
+(defn cpu-read [cpu addr]
+  (mount-read (:memory cpu) addr))
+
 ;; Stack pushing and popping
 (defn push [cpu v]
-  (let [mem (mount-write (:memory cpu) v (+ 0x100 (:sp cpu)))
-        new-sp (unsigned-byte (dec (:sp cpu)))]
-    (merge cpu {:memory mem :sp new-sp})))
+  (-> cpu
+    (cpu-write v (+ 0x100 (:sp cpu)))
+    (assoc :sp (unsigned-byte (dec (:sp cpu))))))
 
 (defasm pha (push cpu (:a cpu)))
 (defasm php (push cpu (bit-or 0x10 (:p cpu))))
 
 (defn pull [cpu reg]
-  (let [v (mount-read (:memory cpu) (+ 0x100 1 (:sp cpu)))]
+  (let [v (cpu-read cpu (+ 0x100 1 (:sp cpu)))]
     (merge cpu {reg v :sp (inc (:sp cpu))})))
 
 (defn pull-pc [cpu]
-  (let [stack (:memory cpu)
-        low (mount-read stack (+ 0x100 1 (:sp cpu)))
-        high (bit-shift-left (mount-read stack (+ 0x100 2 (:sp cpu))) 8)
+  (let [low (cpu-read cpu (+ 0x100 1 (:sp cpu)))
+        high (bit-shift-left (cpu-read cpu (+ 0x100 2 (:sp cpu))) 8)
         new-pc (bit-or low high)]
     (merge cpu {:pc new-pc :sp (+ 2 (:sp cpu))})))
 
@@ -211,6 +221,11 @@
     (-> pulled
       (set-flag break-flag false)
       (set-flag unused-flag true))))
+
+(defn interrupt-vector [cpu]
+  (let [high (bit-shift-left (cpu-read cpu 0xffff) 8)
+        low (cpu-read cpu 0xfffe)]
+    (bit-or high low)))
 
 (defasm pla
   (let [pulled (pull cpu :a)
@@ -265,3 +280,17 @@
 (defasm sec (set-flag cpu carry-flag true))
 (defasm sed (set-flag cpu decimal-flag true))
 (defasm sei (set-flag cpu interrupt-flag true))
+
+;; System functions
+(defasm nop cpu)
+
+(defasm brk
+  (let [pc (inc (:pc cpu))
+        interrupt (interrupt-vector cpu)
+        high (high-byte pc)
+        low  (low-byte pc)]
+    (-> cpu
+      (push high)
+      (push low)
+      (push (bit-or 0x10 (:p cpu)))
+      (assoc :pc interrupt))))

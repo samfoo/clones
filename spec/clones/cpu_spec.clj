@@ -43,6 +43,31 @@
         (should= 0 (:pc (f should-not-branch 0xffff)))
         (should= 0xffff (:pc (f should-branch 0xffff)))))
 
+    (describe "system functions"
+      (describe "brk"
+        (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
+          (let [cpu-with-vector (-> cpu
+                                  (cpu-write 0xff 0xffff)
+                                  (cpu-write 0xee 0xfffe))
+                new-cpu (*asm-brk cpu-with-vector nil)]
+            (should= 0xffee (:pc new-cpu))))
+
+        (it "should push the current program counter (plus 1) to the stack"
+          (let [new-cpu (*asm-brk (assoc cpu :pc 0xbeef) nil)
+                low (peek-stack-n new-cpu 1)
+                high (peek-stack-n new-cpu 2)]
+            (should= 0xbe high)
+            (should= 0xf0 low)))
+
+        (it "should push processor flags to the stack with the interrupt flag set"
+          (let [new-cpu (*asm-brk cpu nil)
+                stack-top (peek-stack new-cpu)]
+            (should= 0x10 stack-top))))
+
+      (describe "nop"
+        (it "should do nothing"
+          (should= cpu (*asm-nop cpu nil)))))
+
     (describe "status flag changes"
       (describe "sei"
         (it "should set the interrupt flag"

@@ -45,7 +45,7 @@
 
 (defn mount-find [mounts addr]
   (first
-    (take-while #(mount-contains? % addr) mounts)))
+    (filter #(mount-contains? % addr) mounts)))
 
 (defn mount-write [mounts v addr]
   (if (not-any? #(mount-contains? % addr) mounts)
