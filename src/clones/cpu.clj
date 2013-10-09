@@ -30,6 +30,11 @@
 (defn cpu-read [cpu addr]
   (mount-read (:memory cpu) addr))
 
+(defn cpu-read-word [cpu addr]
+  (let [high (bit-shift-left (cpu-read cpu (inc addr)) 8)
+        low (cpu-read cpu addr)]
+    (bit-or high low)))
+
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
 (def carry-flag 0x01)
@@ -213,9 +218,7 @@
     (merge cpu {reg v :sp (inc (:sp cpu))})))
 
 (defn pull-pc [cpu]
-  (let [low (cpu-read cpu (+ 0x100 1 (:sp cpu)))
-        high (bit-shift-left (cpu-read cpu (+ 0x100 2 (:sp cpu))) 8)
-        new-pc (bit-or low high)]
+  (let [new-pc (cpu-read-word cpu (+ 0x100 1 (:sp cpu)))]
     (merge cpu {:pc new-pc :sp (+ 2 (:sp cpu))})))
 
 (defn pull-flags [cpu]
@@ -225,9 +228,7 @@
       (set-flag unused-flag true))))
 
 (defn interrupt-vector [cpu]
-  (let [high (bit-shift-left (cpu-read cpu 0xffff) 8)
-        low (cpu-read cpu 0xfffe)]
-    (bit-or high low)))
+  (cpu-read-word cpu 0xfffe))
 
 (defop pla
   (let [pulled (pull cpu :a)
