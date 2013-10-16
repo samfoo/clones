@@ -1,11 +1,13 @@
 (ns clones.cpu
-  (:require [clones.memory :refer :all]
-            [clones.byte   :refer :all]))
+  (:require [clones.memory     :refer :all]
+            [clones.byte       :refer :all]
+            [clones.addressing :refer :all]))
 
 (defmacro defop [op-name action]
   (let [fn-args ['cpu '&
-                 {:keys ['operand]
-                  :or {'operand nil}}]]
+                 {:keys ['operand 'address-mode]
+                  :or {'operand nil
+                       'address-mode nil}}]]
     `(defn ~(symbol (str "*" (name op-name)))
        ~fn-args
        ~action)))
@@ -21,19 +23,6 @@
                  (mount-device 0      0x1fff {})
                  (mount-device 0xfffa 0xffff {}))]
     (assoc state :memory memory)))
-
-(defn cpu-write [cpu v addr]
-  (assoc cpu :memory (mount-write (:memory cpu)
-                                  v
-                                  addr)))
-
-(defn cpu-read [cpu addr]
-  (mount-read (:memory cpu) addr))
-
-(defn cpu-read-word [cpu addr]
-  (let [high (bit-shift-left (cpu-read cpu (inc addr)) 8)
-        low (cpu-read cpu addr)]
-    (bit-or high low)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
@@ -207,18 +196,18 @@
 ;; Stack pushing and popping
 (defn push [cpu v]
   (-> cpu
-    (cpu-write v (+ 0x100 (:sp cpu)))
+    (mem-write v (+ 0x100 (:sp cpu)))
     (assoc :sp (unsigned-byte (dec (:sp cpu))))))
 
 (defop pha (push cpu (:a cpu)))
 (defop php (push cpu (bit-or 0x10 (:p cpu))))
 
 (defn pull [cpu reg]
-  (let [v (cpu-read cpu (+ 0x100 1 (:sp cpu)))]
+  (let [v (mem-read cpu (+ 0x100 1 (:sp cpu)))]
     (merge cpu {reg v :sp (inc (:sp cpu))})))
 
 (defn pull-pc [cpu]
-  (let [new-pc (cpu-read-word cpu (+ 0x100 1 (:sp cpu)))]
+  (let [new-pc (mem-read-word cpu (+ 0x100 1 (:sp cpu)))]
     (merge cpu {:pc new-pc :sp (+ 2 (:sp cpu))})))
 
 (defn pull-flags [cpu]
@@ -228,7 +217,7 @@
       (set-flag unused-flag true))))
 
 (defn interrupt-vector [cpu]
-  (cpu-read-word cpu 0xfffe))
+  (mem-read-word cpu 0xfffe))
 
 (defop pla
   (let [pulled (pull cpu :a)
@@ -297,3 +286,17 @@
       (push low)
       (push (bit-or 0x10 (:p cpu)))
       (assoc :pc interrupt))))
+
+;; Shifts
+
+(defop asl
+  (let [orig (mode-read address-mode cpu)
+        result (bit-shift-left orig 1)
+        carried? (bit-set? orig 0x80)
+        negative? (bit-set? result 0x80)
+        shifted (mode-write address-mode cpu result)]
+    (-> shifted
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag negative?)
+      (set-flag carry-flag carried?))))
+

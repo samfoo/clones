@@ -1,13 +1,14 @@
 (ns clones.addressing-spec
   (:require [speclj.core       :refer :all]
             [clones.cpu        :refer :all]
+            [clones.memory     :refer :all]
             [clones.addressing :refer :all]))
 
 (def cpu (make-cpu))
 (def cpu-with-zp
   (let [zero-page-addr 0x55
-        new-cpu (cpu-write cpu 0xbe zero-page-addr)]
-    (cpu-write new-cpu 0x55 (:pc new-cpu))))
+        new-cpu (mem-write cpu 0xbe zero-page-addr)]
+    (mem-write new-cpu 0x55 (:pc new-cpu))))
 
 (describe "6502 Operation Addressing Mode"
   (describe "indirect-indexed"
@@ -23,9 +24,9 @@
                       ;;       PC         Pointer ref
                       (assoc :y 2)
                       (assoc :pc 0)
-                      (cpu-write 0x02 0)
-                      (cpu-write 0xfd 2)
-                      (cpu-write 0x05 3))]
+                      (mem-write 0x02 0)
+                      (mem-write 0xfd 2)
+                      (mem-write 0x05 3))]
         (should= 0x05ff (mode-addr indirect-indexed new-cpu)))))
 
   (describe "indexed-indirect"
@@ -41,61 +42,61 @@
                       ;;       PC                   Pointer ref
                       (assoc :x 2)
                       (assoc :pc 0)
-                      (cpu-write 0x02 0)
-                      (cpu-write 0x05 4)
-                      (cpu-write 0x10 5))]
+                      (mem-write 0x02 0)
+                      (mem-write 0x05 4)
+                      (mem-write 0x10 5))]
         (should= 0x1005 (mode-addr indexed-indirect new-cpu)))))
 
   (describe "indirect"
     (it "should wrap the least significant byte of the indirect address if
         adding 1 to it would have wrapped to a new page"
       (let [new-cpu (-> cpu
-                      (cpu-write 0xff 0)
-                      (cpu-write 0x01 1)
-                      (cpu-write 0x00 0x0100)
-                      (cpu-write 0x02 (+ 1 0x0100)))]
+                      (mem-write 0xff 0)
+                      (mem-write 0x01 1)
+                      (mem-write 0x00 0x0100)
+                      (mem-write 0x02 (+ 1 0x0100)))]
         (should= 0x0200 (mode-addr indirect new-cpu))))
 
     (it "should be 'readWord(readWord(PC) + 1)'"
       (let [new-cpu (-> cpu
-                      (cpu-write 0x00 0)
-                      (cpu-write 0x01 1)
-                      (cpu-write 0x00 (+ 1 0x0100))
-                      (cpu-write 0x02 (+ 2 0x0100)))]
+                      (mem-write 0x00 0)
+                      (mem-write 0x01 1)
+                      (mem-write 0x00 (+ 1 0x0100))
+                      (mem-write 0x02 (+ 2 0x0100)))]
         (should= 0x0200 (mode-addr indirect new-cpu)))))
 
   (describe "absolute-y"
     (it "should use the absolute address and add the value of Y"
       (let [new-cpu (-> cpu
-                      (cpu-write 0xef 0)
-                      (cpu-write 0xbe 1)
+                      (mem-write 0xef 0)
+                      (mem-write 0xbe 1)
                       (assoc :y 0x10))]
         (should= 0xbeff (mode-addr absolute-y new-cpu)))))
 
   (describe "absolute-x"
     (it "should use the absolute address and add the value of X"
       (let [new-cpu (-> cpu
-                      (cpu-write 0xef 0)
-                      (cpu-write 0xbe 1)
+                      (mem-write 0xef 0)
+                      (mem-write 0xbe 1)
                       (assoc :x 0x10))]
         (should= 0xbeff (mode-addr absolute-x new-cpu)))))
 
   (describe "absolute"
     (it "should be 'readWord(PC)'"
       (let [new-cpu (-> cpu
-                      (cpu-write 0xef 0)
-                      (cpu-write 0xbe 1))]
+                      (mem-write 0xef 0)
+                      (mem-write 0xbe 1))]
         (should= 0xbeef (mode-addr absolute new-cpu)))))
 
   (describe "relative"
     (it "should be 'read(PC) + (PC - 0x100) + 1' if read(PC) is >= 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)
-            new-cpu (cpu-write cpu-with-pc 0x80 (:pc cpu-with-pc))]
+            new-cpu (mem-write cpu-with-pc 0x80 (:pc cpu-with-pc))]
         (should= 0x0f81 (mode-addr relative new-cpu))))
 
     (it "should be 'read(PC) + PC + 1' if read(PC) is < 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)
-            new-cpu (cpu-write cpu-with-pc 0x79 (:pc cpu-with-pc))]
+            new-cpu (mem-write cpu-with-pc 0x79 (:pc cpu-with-pc))]
         (should= 0x107a (mode-addr relative new-cpu)))))
 
   (describe "zero-page-y"

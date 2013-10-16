@@ -1,6 +1,6 @@
 (ns clones.addressing
-  (:require [clones.cpu  :refer :all]
-            [clones.byte :refer :all]))
+  (:require [clones.memory :refer :all]
+            [clones.byte   :refer :all]))
 
 (defprotocol AddressMode
   "A set of methods for accessing various address modes for reading/writing."
@@ -26,8 +26,8 @@
          (extend-protocol clones.addressing/AddressMode
            ~klass
            (~'mode-addr [~'this ~'cpu] ~desc)
-           (~'mode-read [~'this ~'cpu] (cpu-read ~'cpu (~'mode-addr ~'this ~'cpu)))
-           (~'mode-write [~'this ~'cpu ~'v] (cpu-write ~'cpu ~'v (~'mode-addr ~'this ~'cpu))))
+           (~'mode-read [~'this ~'cpu] (mem-read ~'cpu (~'mode-addr ~'this ~'cpu)))
+           (~'mode-write [~'this ~'cpu ~'v] (mem-write ~'cpu ~'v (~'mode-addr ~'this ~'cpu))))
          (def ~mode-name (new ~klass))))))
 
 (defaddrmode implied
@@ -41,19 +41,19 @@
   (unsigned-byte
     (+
       (reg cpu)
-      (cpu-read cpu (:pc cpu)))))
+      (mem-read cpu (:pc cpu)))))
 
-(defaddrmode zero-page (cpu-read cpu (:pc cpu)))
+(defaddrmode zero-page (mem-read cpu (:pc cpu)))
 (defaddrmode zero-page-x (zero-page-reg cpu :x))
 (defaddrmode zero-page-y (zero-page-reg cpu :y))
 
 (defaddrmode relative
-  (let [offset (cpu-read cpu (:pc cpu))]
+  (let [offset (mem-read cpu (:pc cpu))]
     (if (< offset 0x80)
       (+ 1 (:pc cpu) offset)
       (+ 1 (- (:pc cpu) 0x100) offset))))
 
-(defaddrmode absolute (cpu-read-word cpu (:pc cpu)))
+(defaddrmode absolute (mem-read-word cpu (:pc cpu)))
 (defaddrmode absolute-x (+ (:x cpu) (mode-addr absolute cpu)))
 (defaddrmode absolute-y (+ (:y cpu) (mode-addr absolute cpu)))
 
@@ -62,12 +62,12 @@
         abs-wrapped (if (= 0xff (unsigned-byte abs))
                       (bit-and abs 0xff00)
                       (inc abs))]
-    (cpu-read-word cpu abs-wrapped)))
+    (mem-read-word cpu abs-wrapped)))
 
 (defaddrmode indexed-indirect
-  (let [pointer (cpu-read cpu (:pc cpu))]
-    (cpu-read-word cpu (+ pointer (:x cpu)))))
+  (let [pointer (mem-read cpu (:pc cpu))]
+    (mem-read-word cpu (+ pointer (:x cpu)))))
 
 (defaddrmode indirect-indexed
-  (let [pointer (cpu-read cpu (:pc cpu))]
-    (+ (cpu-read-word cpu pointer) (:y cpu))))
+  (let [pointer (mem-read cpu (:pc cpu))]
+    (+ (mem-read-word cpu pointer) (:y cpu))))

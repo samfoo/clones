@@ -1,7 +1,8 @@
 (ns clones.cpu-spec
-  (:require [speclj.core   :refer :all]
-            [clones.cpu    :refer :all]
-            [clones.memory :refer :all]))
+  (:require [speclj.core       :refer :all]
+            [clones.cpu        :refer :all]
+            [clones.memory     :refer :all]
+            [clones.addressing :refer :all]))
 
 (def cpu (make-cpu))
 (def cpu-with-carry (assoc cpu :p carry-flag))
@@ -43,12 +44,32 @@
         (should= 0 (:pc (f should-not-branch :operand 0xffff)))
         (should= 0xffff (:pc (f should-branch :operand 0xffff)))))
 
+    (describe "shifts and rotates"
+      (describe "asl"
+        (check-zero-flag-sets #(*asl %1 :address-mode accumulator))
+        (check-zero-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
+
+        (check-negative-flag-sets #(*asl (assoc %1 :a 0x40) :address-mode accumulator))
+        (check-negative-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
+
+        (it "should set the carry flag if bit-7 of the old value is 1"
+          (let [cpu-shifted (-> cpu
+                              (assoc :a 0x80)
+                              (*asl :address-mode accumulator))]
+            (should (carry-flag? cpu-shifted))))
+
+        (it "should shift bits of the address mode left by 1 bit"
+          (let [cpu-shifted (-> cpu
+                              (assoc :a 1)
+                              (*asl :address-mode accumulator))]
+            (should= 2 (:a cpu-shifted))))))
+
     (describe "system functions"
       (describe "brk"
         (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
           (let [cpu-with-vector (-> cpu
-                                  (cpu-write 0xff 0xffff)
-                                  (cpu-write 0xee 0xfffe))
+                                  (mem-write 0xff 0xffff)
+                                  (mem-write 0xee 0xfffe))
                 new-cpu (*brk cpu-with-vector)]
             (should= 0xffee (:pc new-cpu))))
 

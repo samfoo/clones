@@ -63,3 +63,16 @@
       (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
       (read-device (:device mount) (- addr (:start mount))))))
 
+(defn mem-write [dev v addr]
+  (assoc dev :memory (mount-write (:memory dev)
+                                  v
+                                  addr)))
+
+(defn mem-read [dev addr]
+  (mount-read (:memory dev) addr))
+
+(defn mem-read-word [dev addr]
+  (let [high (bit-shift-left (mem-read dev (inc addr)) 8)
+        low (mem-read dev addr)]
+    (bit-or high low)))
+
