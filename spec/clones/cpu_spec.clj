@@ -32,7 +32,7 @@
 
     (defn check-carry-flag-unsets [c]
       (it "should unset the carry flag when the result doesn't carry"
-        (should-not (carry-flag? (c cpu)))))
+        (should-not (carry-flag? (c (set-flag cpu carry-flag true))))))
 
     (defn check-carry-flag-sets [c]
       (it "should set the carry flag when the result carries"
@@ -53,6 +53,53 @@
         (should= 0xffff (:pc (f should-branch :operand 0xffff)))))
 
     (describe "shifts and rotates"
+      (describe "ror"
+        (check-zero-flag-sets #(*ror %1 :address-mode accumulator))
+        (check-zero-flag-unsets #(*ror (assoc %1 :a 0x80) :address-mode accumulator))
+
+        (check-negative-flag-sets #(*ror (assoc %1 :a 1) :address-mode accumulator))
+        (check-negative-flag-unsets #(*ror (assoc %1 :a 0x40) :address-mode accumulator))
+
+        (check-carry-flag-sets #(*ror (assoc %1 :a 1) :address-mode accumulator))
+        (check-carry-flag-unsets #(*ror (assoc %1 :a 0x80) :address-mode accumulator))
+
+        (it "should rotate the bits of the address mode right by 1"
+          (let [cpu-rotated (-> cpu
+                              (assoc :a 0x21)
+                              (*ror :address-mode accumulator))]
+            (should= 0x90 (:a cpu-rotated)))))
+
+      (describe "rol"
+        (check-zero-flag-sets #(*rol %1 :address-mode accumulator))
+        (check-zero-flag-unsets #(*rol (assoc %1 :a 0x80) :address-mode accumulator))
+
+        (check-negative-flag-sets #(*rol (assoc %1 :a 0x40) :address-mode accumulator))
+        (check-negative-flag-unsets #(*rol (assoc %1 :a 1) :address-mode accumulator))
+
+        (check-carry-flag-sets #(*rol (assoc %1 :a 0x80) :address-mode accumulator))
+        (check-carry-flag-unsets #(*rol (assoc %1 :a 1) :address-mode accumulator))
+
+        (it "should rotate the bits of the address mode left by 1"
+          (let [cpu-rotated (-> cpu
+                              (assoc :a 0x82)
+                              (*rol :address-mode accumulator))]
+            (should= 5 (:a cpu-rotated)))))
+
+      (describe "lsr"
+        (check-zero-flag-sets #(*lsr %1 :address-mode accumulator))
+        (check-zero-flag-unsets #(*lsr (assoc %1 :a 0x80) :address-mode accumulator))
+
+        (check-negative-flag-unsets #(*lsr (assoc %1 :a 1) :address-mode accumulator))
+
+        (check-carry-flag-sets #(*lsr (assoc %1 :a 1) :address-mode accumulator))
+        (check-carry-flag-unsets #(*lsr (assoc %1 :a 0x80) :address-mode accumulator))
+
+        (it "should shift the bits of the address mode right by 1"
+          (let [cpu-shifted (-> cpu
+                              (assoc :a 0x80)
+                              (*lsr :address-mode accumulator))]
+            (should= 0x40 (:a cpu-shifted)))))
+
       (describe "asl"
         (check-zero-flag-sets #(*asl %1 :address-mode accumulator))
         (check-zero-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
@@ -63,7 +110,7 @@
         (check-carry-flag-sets #(*asl (assoc %1 :a 0x80) :address-mode accumulator))
         (check-carry-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
 
-        (it "should shift bits of the address mode left by 1 bit"
+        (it "should shift the bits of the address mode left by 1"
           (let [cpu-shifted (-> cpu
                               (assoc :a 1)
                               (*asl :address-mode accumulator))]

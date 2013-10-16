@@ -291,7 +291,7 @@
 
 (defop asl
   (let [orig (mode-read address-mode cpu)
-        result (bit-shift-left orig 1)
+        result (unsigned-byte (bit-shift-left orig 1))
         carried? (bit-set? orig 0x80)
         negative? (bit-set? result 0x80)
         shifted (mode-write address-mode cpu result)]
@@ -300,3 +300,40 @@
       (set-flag negative-flag negative?)
       (set-flag carry-flag carried?))))
 
+(defop lsr
+  (let [orig (mode-read address-mode cpu)
+        result (unsigned-byte (bit-shift-right orig 1))
+        carried? (bit-set? orig 1)
+        shifted (mode-write address-mode cpu result)]
+    (-> shifted
+      (set-flag carry-flag carried?)
+      (set-flag negative-flag false)
+      (set-flag zero-flag (zero? result)))))
+
+(defop rol
+  (let [orig (mode-read address-mode cpu)
+        shifted (unsigned-byte (bit-shift-left orig 1))
+        carried? (bit-set? orig 0x80)
+        result (if carried?
+                 (bit-or 1 shifted)
+                 shifted)
+        negative? (bit-set? result 0x80)
+        rotated (mode-write address-mode cpu result)]
+    (-> rotated
+      (set-flag negative-flag negative?)
+      (set-flag zero-flag (zero? result))
+      (set-flag carry-flag carried?))))
+
+(defop ror
+  (let [orig (mode-read address-mode cpu)
+        shifted (unsigned-byte (bit-shift-right orig 1))
+        carried? (bit-set? orig 1)
+        result (if carried?
+                 (bit-or 0x80 shifted)
+                 shifted)
+        negative? (bit-set? result 0x80)
+        rotated (mode-write address-mode cpu result)]
+    (-> rotated
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag negative?)
+      (set-flag carry-flag carried?))))
