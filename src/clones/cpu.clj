@@ -3,7 +3,7 @@
             [clones.byte       :refer :all]
             [clones.addressing :refer :all]))
 
-(defmacro defop [op-name action]
+(defmacro defop [op-name opcodes action]
   (let [fn-args ['cpu '&
                  {:keys ['operand 'address-mode]
                   :or {'operand nil
@@ -60,9 +60,25 @@
       (set-flag negative-flag (negative? result))
       (set-flag zero-flag (zero? result)))))
 
-(defop cmp (compare-op cpu operand :a))
-(defop cpx (compare-op cpu operand :x))
-(defop cpy (compare-op cpu operand :y))
+(defop cmp [0xc9 immediate
+            0xc5 zero-page
+            0xd5 zero-page-x
+            0xcd absolute
+            0xdd absolute-x
+            0xd9 absolute-y
+            0xc1 indexed-indirect
+            0xd1 indirect-indexed]
+  (compare-op cpu operand :a))
+
+(defop cpx [0xe0 immediate
+            0xe4 zero-page
+            0xec absolute]
+  (compare-op cpu operand :x))
+
+(defop cpy [0xc0 immediate
+            0xc4 zero-page
+            0xcc absolute]
+  (compare-op cpu operand :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?
@@ -92,7 +108,14 @@
         true
         false))))
 
-(defop adc
+(defop adc [0x69 immediate
+            0x65 zero-page
+            0x75 zero-page-x
+            0x6d absolute
+            0x7d absolute-x
+            0x79 absolute-y
+            0x61 indexed-indirect
+            0x71 indirect-indexed]
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (+ (:a cpu) operand 1)
                  (+ (:a cpu) operand)))
@@ -105,7 +128,14 @@
       (set-flag zero-flag (zero? result))
       (assoc :a result))))
 
-(defop sbc
+(defop sbc [0xe9 immediate
+            0xe5 zero-page
+            0xf5 zero-page-x
+            0xed absolute
+            0xfd absolute-x
+            0xf9 absolute-y
+            0xe1 indexed-indirect
+            0xf1 indirect-indexed]
   (let [result (unsigned-byte (if (carry-flag? cpu)
                  (- (:a cpu) operand)
                  (- (:a cpu) operand 1)))
@@ -127,11 +157,38 @@
       (set-flag negative-flag (negative? result))
       (assoc :a result))))
 
-(defop and (logical-op cpu operand bit-and))
-(defop ora (logical-op cpu operand bit-or))
-(defop eor (logical-op cpu operand bit-xor))
+(defop and [0x29 immediate
+            0x25 zero-page
+            0x45 zero-page-x
+            0x2d absolute
+            0x3d absolute-x
+            0x39 absolute-y
+            0x21 indexed-indirect
+            0x31 indirect-indexed]
+  (logical-op cpu operand bit-and))
 
-(defop bit
+(defop ora [0x09 immediate
+            0x05 zero-page
+            0x15 zero-page-x
+            0x0d absolute
+            0x1d absolute-x
+            0x19 absolute-y
+            0x01 indexed-indirect
+            0x11 indirect-indexed]
+  (logical-op cpu operand bit-or))
+
+(defop eor [0x49 immediate
+            0x45 zero-page
+            0x55 zero-page-x
+            0x4d absolute
+            0x5d absolute-x
+            0x59 absolute-y
+            0x41 indexed-indirect
+            0x51 indirect-indexed]
+  (logical-op cpu operand bit-xor))
+
+(defop bit [0x24 zero-page
+            0x2c absolute]
   (let [result (unsigned-byte (bit-and (:a cpu) operand))
         overflowed? (== 0x40 (bit-and result 0x40))]
     (-> cpu
@@ -148,17 +205,52 @@
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defop lda (load-op cpu operand :a))
-(defop ldx (load-op cpu operand :x))
-(defop ldy (load-op cpu operand :y))
+(defop lda [0xa9 immediate
+            0xa5 zero-page
+            0xb5 zero-page-x
+            0xad absolute
+            0xbd absolute-x
+            0xb9 absolute-y
+            0xa1 indexed-indirect
+            0xb1 indirect-indexed]
+  (load-op cpu operand :a))
+
+(defop ldx [0xa2 immediate
+            0xa6 zero-page
+            0xb6 zero-page-x
+            0xae absolute
+            0xbe absolute-x]
+  (load-op cpu operand :x))
+
+(defop ldy [0xa0 immediate
+            0xa4 zero-page
+            0xb4 zero-page-x
+            0xac absolute
+            0xbc absolute-x]
+  (load-op cpu operand :y))
 
 (defn store-op
   [cpu address-mode reg]
   (mode-write address-mode cpu (reg cpu)))
 
-(defop sta (store-op cpu address-mode :a))
-(defop stx (store-op cpu address-mode :x))
-(defop sty (store-op cpu address-mode :y))
+(defop sta [0x85 zero-page
+            0x95 zero-page-x
+            0x8d absolute
+            0x9d absolute-x
+            0x99 absolute-y
+            0x81 indexed-indirect
+            0x91 indirect-indexed]
+  (store-op cpu address-mode :a))
+
+(defop stx [0x86 zero-page
+            0x96 zero-page-y
+            0x8e absolute]
+  (store-op cpu address-mode :x))
+
+(defop sty [0x84 zero-page
+            0x94 zero-page-x
+            0x8c absolute]
+  (store-op cpu address-mode :y))
 
 ;; Register transfers
 (defn transfer-reg-op
@@ -169,12 +261,12 @@
       (set-flag negative-flag (negative? result))
       (assoc to result))))
 
-(defop tax (transfer-reg-op cpu :a :x))
-(defop tay (transfer-reg-op cpu :a :y))
-(defop txa (transfer-reg-op cpu :x :a))
-(defop tya (transfer-reg-op cpu :y :a))
-(defop tsx (transfer-reg-op cpu :sp :x))
-(defop txs (transfer-reg-op cpu :x :sp))
+(defop tax [0xaa implied] (transfer-reg-op cpu :a :x))
+(defop tay [0xa8 implied] (transfer-reg-op cpu :a :y))
+(defop txa [0x8a implied] (transfer-reg-op cpu :x :a))
+(defop tya [0x98 implied] (transfer-reg-op cpu :y :a))
+(defop tsx [0x9a implied] (transfer-reg-op cpu :sp :x))
+(defop txs [0xba implied] (transfer-reg-op cpu :x :sp))
 
 ;; Increment & decrements
 (defn increment-op
@@ -185,9 +277,20 @@
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defop inc (increment-op cpu :a))
-(defop inx (increment-op cpu :x))
-(defop iny (increment-op cpu :y))
+(defop inc [0xe6 zero-page
+            0xf6 zero-page-x
+            0xee absolute
+            0xfe absolute-x]
+  (let [orig (mode-read address-mode cpu)
+        result (unsigned-byte (inc orig))
+        incd (mode-write address-mode cpu result)]
+    (-> incd
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result)))))
+
+
+(defop inx [0xe8 implied] (increment-op cpu :x))
+(defop iny [0xc8 implied] (increment-op cpu :y))
 
 (defn decrement-op
   [cpu reg]
@@ -197,9 +300,18 @@
       (set-flag negative-flag (negative? result))
       (assoc reg result))))
 
-(defop dec (decrement-op cpu :a))
-(defop dex (decrement-op cpu :x))
-(defop dey (decrement-op cpu :y))
+(defop dec [0xc6 zero-page
+            0xd6 zero-page-x
+            0xce absolute
+            0xde absolute-x]
+  (let [result (unsigned-byte (dec (mode-read address-mode cpu)))
+        decd (mode-write address-mode cpu result)]
+    (-> decd
+      (set-flag zero-flag (zero? result))
+      (set-flag negative-flag (negative? result)))))
+
+(defop dex [0xca implied] (decrement-op cpu :x))
+(defop dey [0x88 implied] (decrement-op cpu :y))
 
 ;; Stack pushing and popping
 (defn push [cpu v]
@@ -207,8 +319,8 @@
     (mem-write v (+ 0x100 (:sp cpu)))
     (assoc :sp (unsigned-byte (dec (:sp cpu))))))
 
-(defop pha (push cpu (:a cpu)))
-(defop php (push cpu (bit-or 0x10 (:p cpu))))
+(defop pha [0x48 implied] (push cpu (:a cpu)))
+(defop php [0x08 implied] (push cpu (bit-or 0x10 (:p cpu))))
 
 (defn pull [cpu reg]
   (let [v (mem-read cpu (+ 0x100 1 (:sp cpu)))]
@@ -227,19 +339,21 @@
 (defn interrupt-vector [cpu]
   (mem-read-word cpu 0xfffe))
 
-(defop pla
+(defop pla [0x68 implied]
   (let [pulled (pull cpu :a)
         result (:a pulled)]
     (-> pulled
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
 
-(defop plp (pull-flags cpu))
+(defop plp [0x28 implied] (pull-flags cpu))
 
 ;; Jumps and calls
-(defop jmp (assoc cpu :pc operand))
+(defop jmp [0x4c absolute
+            0x6c indirect]
+  (assoc cpu :pc operand))
 
-(defop jsr
+(defop jsr [0x20 absolute]
   (let [pc (dec (:pc cpu))
         high (high-byte pc)
         low  (low-byte pc)]
@@ -248,12 +362,12 @@
       (push low)
       (assoc :pc operand))))
 
-(defop rti
+(defop rti [0x40 implied]
   (-> cpu
     (pull-flags)
     (pull-pc)))
 
-(defop rts
+(defop rts [0x60 implied]
   (let [pulled (pull-pc cpu)]
     (assoc pulled :pc (inc (:pc pulled)))))
 
@@ -263,28 +377,28 @@
     (assoc cpu :pc addr)
     cpu))
 
-(defop bcc (branch-if cpu (not (carry-flag? cpu)) operand))
-(defop bcs (branch-if cpu (carry-flag? cpu) operand))
-(defop beq (branch-if cpu (zero-flag? cpu) operand))
-(defop bmi (branch-if cpu (negative-flag? cpu) operand))
-(defop bne (branch-if cpu (not (zero-flag? cpu)) operand))
-(defop bpl (branch-if cpu (not (negative-flag? cpu)) operand))
-(defop bvc (branch-if cpu (not (overflow-flag? cpu)) operand))
-(defop bvs (branch-if cpu (overflow-flag? cpu) operand))
+(defop bcc [0x90 relative] (branch-if cpu (not (carry-flag? cpu)) operand))
+(defop bcs [0xb0 relative] (branch-if cpu (carry-flag? cpu) operand))
+(defop beq [0xf0 relative] (branch-if cpu (zero-flag? cpu) operand))
+(defop bmi [0x30 relative] (branch-if cpu (negative-flag? cpu) operand))
+(defop bne [0xd0 relative] (branch-if cpu (not (zero-flag? cpu)) operand))
+(defop bpl [0x10 relative] (branch-if cpu (not (negative-flag? cpu)) operand))
+(defop bvc [0x50 relative] (branch-if cpu (not (overflow-flag? cpu)) operand))
+(defop bvs [0x70 relative] (branch-if cpu (overflow-flag? cpu) operand))
 
 ;; Status flag changes
-(defop clc (set-flag cpu carry-flag false))
-(defop cld (set-flag cpu decimal-flag false))
-(defop cli (set-flag cpu interrupt-flag false))
-(defop clv (set-flag cpu overflow-flag false))
-(defop sec (set-flag cpu carry-flag true))
-(defop sed (set-flag cpu decimal-flag true))
-(defop sei (set-flag cpu interrupt-flag true))
+(defop clc [0x18 implied] (set-flag cpu carry-flag false))
+(defop cld [0xd8 implied] (set-flag cpu decimal-flag false))
+(defop cli [0x58 implied] (set-flag cpu interrupt-flag false))
+(defop clv [0xb8 implied] (set-flag cpu overflow-flag false))
+(defop sec [0x38 implied] (set-flag cpu carry-flag true))
+(defop sed [0xf8 implied] (set-flag cpu decimal-flag true))
+(defop sei [0x78 implied] (set-flag cpu interrupt-flag true))
 
 ;; System functions
-(defop nop cpu)
+(defop nop [0xea implied] cpu)
 
-(defop brk
+(defop brk [0x00 implied]
   (let [pc (inc (:pc cpu))
         interrupt (interrupt-vector cpu)
         high (high-byte pc)
@@ -297,7 +411,11 @@
 
 ;; Shifts
 
-(defop asl
+(defop asl [0x0a accumulator
+            0x06 zero-page
+            0x16 zero-page-x
+            0x0e absolute
+            0x1d absolute-x]
   (let [orig (mode-read address-mode cpu)
         result (unsigned-byte (bit-shift-left orig 1))
         carried? (bit-set? orig 0x80)
@@ -308,7 +426,11 @@
       (set-flag negative-flag negative?)
       (set-flag carry-flag carried?))))
 
-(defop lsr
+(defop lsr [0x4a accumulator
+            0x46 zero-page
+            0x56 zero-page-x
+            0x4e absolute
+            0x5e absolute-x]
   (let [orig (mode-read address-mode cpu)
         result (unsigned-byte (bit-shift-right orig 1))
         carried? (bit-set? orig 1)
@@ -318,7 +440,11 @@
       (set-flag negative-flag false)
       (set-flag zero-flag (zero? result)))))
 
-(defop rol
+(defop rol [0x2a accumulator
+            0x26 zero-page
+            0x36 zero-page-x
+            0x2e absolute
+            0x3d absolute-x]
   (let [orig (mode-read address-mode cpu)
         shifted (unsigned-byte (bit-shift-left orig 1))
         carried? (bit-set? orig 0x80)
@@ -332,7 +458,11 @@
       (set-flag zero-flag (zero? result))
       (set-flag carry-flag carried?))))
 
-(defop ror
+(defop ror [0x6a accumulator
+            0x66 zero-page
+            0x76 zero-page-x
+            0x6e absolute
+            0x7e absolute-x]
   (let [orig (mode-read address-mode cpu)
         shifted (unsigned-byte (bit-shift-right orig 1))
         carried? (bit-set? orig 1)

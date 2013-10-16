@@ -320,6 +320,16 @@
             (should= 0xbe stack-top)))))
 
     (describe "decrement operations"
+      (describe "dec"
+        (check-zero-flag-sets #(*dec (mem-write %1 1 0) :address-mode immediate))
+        (check-zero-flag-unsets #(*dec %1 :address-mode immediate))
+        (check-negative-flag-sets #(*dec %1 :address-mode immediate))
+        (check-negative-flag-unsets #(*dec (mem-write %1 1 0) :address-mode immediate))
+
+        (it "should decrement the value at the address mode by one"
+          (let [new-cpu (*dec cpu :address-mode immediate)]
+            (should= 0xff (mem-read new-cpu 0)))))
+
       (map (fn [[op reg]]
              (describe (str op)
                (check-zero-flag-sets #(op (assoc %1 reg 1)))
@@ -330,11 +340,20 @@
                (it (format "should decrement the %s register by one" (str reg))
                  (let [new-cpu (op cpu)]
                    (should= 0xff (reg new-cpu))))))
-        {*dec :a
-         *dex :x
+        {*dex :x
          *dey :y}))
 
     (describe "increment operations"
+      (describe "inc"
+        (check-zero-flag-sets #(*inc (mem-write %1 0xff 0) :address-mode immediate))
+        (check-zero-flag-unsets #(*inc %1 :address-mode immediate))
+        (check-negative-flag-sets #(*inc (mem-write %1 0x7f 0) :address-mode immediate))
+        (check-negative-flag-unsets #(*inc %1 :address-mode immediate))
+
+        (it "should increment the value at the address mode by one"
+          (let [new-cpu (*inc cpu :address-mode immediate)]
+            (should= 1 (mem-read new-cpu 0)))))
+
       (map (fn [[op reg]]
              (describe (str op)
                (check-zero-flag-sets #(op (assoc %1 reg 0xff)))
@@ -345,8 +364,7 @@
                (it (format "should increment the %s register by one" (str reg))
                  (let [new-cpu (op cpu)]
                    (should= 1 (reg new-cpu))))))
-        {*inc :a
-         *inx :x
+        {*inx :x
          *iny :y}))
 
     (describe "register transfer operations"
