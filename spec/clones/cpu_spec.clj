@@ -30,6 +30,14 @@
       (it "should unset the negative flag when the result is non-negative"
         (should-not (negative-flag? (c (set-flag cpu negative-flag true))))))
 
+    (defn check-carry-flag-unsets [c]
+      (it "should unset the carry flag when the result doesn't carry"
+        (should-not (carry-flag? (c cpu)))))
+
+    (defn check-carry-flag-sets [c]
+      (it "should set the carry flag when the result carries"
+        (should (carry-flag? (c cpu)))))
+
     (defn peek-stack-n [c n]
       (mount-read (:memory c) (+ 0x100 1 n (:sp c))))
 
@@ -52,11 +60,8 @@
         (check-negative-flag-sets #(*asl (assoc %1 :a 0x40) :address-mode accumulator))
         (check-negative-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
 
-        (it "should set the carry flag if bit-7 of the old value is 1"
-          (let [cpu-shifted (-> cpu
-                              (assoc :a 0x80)
-                              (*asl :address-mode accumulator))]
-            (should (carry-flag? cpu-shifted))))
+        (check-carry-flag-sets #(*asl (assoc %1 :a 0x80) :address-mode accumulator))
+        (check-carry-flag-unsets #(*asl (assoc %1 :a 1) :address-mode accumulator))
 
         (it "should shift bits of the address mode left by 1 bit"
           (let [cpu-shifted (-> cpu
