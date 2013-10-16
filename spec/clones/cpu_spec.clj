@@ -52,6 +52,22 @@
         (should= 0 (:pc (f should-not-branch :operand 0xffff)))
         (should= 0xffff (:pc (f should-branch :operand 0xffff)))))
 
+    (describe "store operations"
+      (describe "sty"
+        (it "should store the y register in the address mode"
+          (let [new-cpu (*sty (assoc cpu :y 0xff) :address-mode absolute)]
+            (should= 0xff (mem-read new-cpu 0x0000)))))
+
+      (describe "stx"
+        (it "should store the x register in the address mode"
+          (let [new-cpu (*stx (assoc cpu :x 0xff) :address-mode absolute)]
+            (should= 0xff (mem-read new-cpu 0x0000)))))
+
+      (describe "sta"
+        (it "should store the accumulator in the address mode"
+          (let [new-cpu (*sta (assoc cpu :a 0xff) :address-mode absolute)]
+            (should= 0xff (mem-read new-cpu 0x0000))))))
+
     (describe "shifts and rotates"
       (describe "ror"
         (check-zero-flag-sets #(*ror %1 :address-mode accumulator))

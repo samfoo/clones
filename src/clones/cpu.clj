@@ -139,7 +139,7 @@
       (set-flag overflow-flag overflowed?)
       (set-flag negative-flag (negative? result)))))
 
-;; Load operations
+;; Load & store operations
 (defn load-op
   [cpu operand reg]
   (let [result (unsigned-byte operand)]
@@ -151,6 +151,14 @@
 (defop lda (load-op cpu operand :a))
 (defop ldx (load-op cpu operand :x))
 (defop ldy (load-op cpu operand :y))
+
+(defn store-op
+  [cpu address-mode reg]
+  (mode-write address-mode cpu (reg cpu)))
+
+(defop sta (store-op cpu address-mode :a))
+(defop stx (store-op cpu address-mode :x))
+(defop sty (store-op cpu address-mode :y))
 
 ;; Register transfers
 (defn transfer-reg-op
