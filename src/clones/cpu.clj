@@ -29,8 +29,8 @@
                :p 0
                :pc 0}
         memory (-> []
-                 (mount-device 0      0x1fff {})
-                 (mount-device 0xfffa 0xffff {}))]
+                 (mount-device 0      0x1fff {})   ;; 8kb of internal ram.
+                 (mount-device 0xfffa 0xffff {}))] ;; Interrupt vectors.
     (assoc state :memory memory)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
