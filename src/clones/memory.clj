@@ -1,17 +1,17 @@
 (ns clones.memory
-  (:require [clojure.pprint :refer :all]
-            [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [clojure.algo.monads :refer :all]))
 
 (defprotocol Device
   "A memory mapped I/O device that can be read from or written to."
-  (read-device [m addr] "Reads a single byte from the device")
-  (write-device [m v addr] "Writes a single byte to the device and returns the
+  (device-read [m addr] "Reads a single byte from the device")
+  (device-write [m v addr] "Writes a single byte to the device and returns the
                             mutated device (or a new instance)"))
 
 (extend-protocol Device
-  (type {})
-  (read-device [this addr] (get this addr 0))
-  (write-device [this v addr] (assoc this addr v)))
+  clojure.lang.APersistentMap
+  (device-read [device addr] [(get device addr 0) device])
+  (device-write [device v addr] [v (assoc device addr v)]))
 
 (defn mounts-overlap? [m1 m2]
   (and
@@ -41,38 +41,62 @@
                (format "Device already mounted at 0x%04X to 0x%04x, current devices: [%s]"
                        start-addr end-addr
                        (mounts-str mounts))))
-      (concat mounts [m]))))
+      (conj mounts m))))
 
-(defn mount-find [mounts addr]
-  (first
-    (filter #(mount-contains? % addr) mounts)))
-
-(defn mount-write [mounts v addr]
+(defn error-if-invalid-addr [mounts addr]
   (if (not-any? #(mount-contains? % addr) mounts)
     (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
-    (map (fn [m]
-           (let [device (:device m)
-                 offset (- addr (:start m))]
-             (if (mount-contains? m addr)
-               (assoc m :device (write-device device v offset))
-               m))) mounts)))
+    nil))
 
-(defn mount-read [mounts addr]
-  (let [mount (mount-find mounts addr)]
-    (if (nil? mount)
-      (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
-      (read-device (:device mount) (- addr (:start mount))))))
+(defn mounts-write [mounts v addr]
+  (error-if-invalid-addr mounts addr)
+  (let [mounts-after-write (map
+                             (fn [m]
+                               (if (mount-contains? m addr)
+                                 (let [device (:device m)
+                                       [_ device-after-write] (device-write device v addr)]
+                                   (assoc m :device device-after-write))
+                                 m))
+                             mounts)]
+    [v mounts-after-write]))
+
+(defn mounts-read [mounts addr]
+  (error-if-invalid-addr mounts addr)
+  (reduce (fn [[result mounts-state] m]
+            (if (mount-contains? m addr)
+              (let [[v device-after-read] (device-read (:device m) addr)
+                    mount-after-read (assoc m :device device-after-read)]
+                [v (conj mounts-state mount-after-read)])
+              [result (conj mounts-state m)])) [nil []] mounts))
 
 (defn mem-write [dev v addr]
-  (assoc dev :memory (mount-write (:memory dev)
-                                  v
-                                  addr)))
+  (assoc dev :memory (mounts-write (:memory dev)
+                                    v
+                                    addr)))
 
-(defn mem-read [dev addr]
-  (mount-read (:memory dev) addr))
+(defn io-read [addr]
+  (fn [dev]
+    (let [[v mounts-after-read] (mounts-read (:memory dev) addr)]
+      [v (assoc dev :memory mounts-after-read)])))
 
-(defn mem-read-word [dev addr]
-  (let [high (bit-shift-left (mem-read dev (inc addr)) 8)
-        low (mem-read dev addr)]
-    (bit-or high low)))
+(defn io-write [v addr]
+  (fn [dev]
+    (let [[v mounts-after-write] (mounts-write (:memory dev) v addr)]
+      [v (assoc dev :memory mounts-after-write)])))
+
+(defn io-read-word [addr]
+  (domonad state-m
+           [high (io-read (+ 1 addr))
+            low (io-read addr)]
+           (bit-or (bit-shift-left high 8) low)))
+
+(defmacro with-io-> [steps expr]
+  `(domonad state-m ~steps ~expr))
+
+(defmacro io-> [dev & steps]
+  `(reduce
+     (fn [~'mem ~'step]
+       (~'step (second ~'mem)))
+     [nil ~dev]
+     [~@steps]))
 

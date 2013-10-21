@@ -39,13 +39,16 @@
         (should (carry-flag? (c cpu)))))
 
     (defn peek-stack-n [c n]
-      (mount-read (:memory c) (+ 0x100 1 n (:sp c))))
+      (first
+        (io-> c
+              (io-read (+ 0x100 1 n (:sp c))))))
 
     (defn peek-stack [c] (peek-stack-n c 0))
 
     (defn with-stack-top [cpu v]
-      (let [stack-with-value (mount-write (:memory cpu) v 0x1fd)]
-        (merge cpu {:memory stack-with-value :sp 0xfc})))
+      (let [[_ after-write] (io-> cpu
+                                  (io-write v 0x1fd))]
+        (assoc after-write :sp 0xfc)))
 
     (defn check-branching [desc f should-branch should-not-branch]
       (it desc
@@ -56,17 +59,20 @@
       (describe "sty"
         (it "should store the y register in the address mode"
           (let [new-cpu (*sty (assoc cpu :y 0xff) :address-mode absolute)]
-            (should= 0xff (mem-read new-cpu 0x0000)))))
+            (should= 0xff (first (io-> new-cpu
+                                       (io-read 0)))))))
 
       (describe "stx"
         (it "should store the x register in the address mode"
           (let [new-cpu (*stx (assoc cpu :x 0xff) :address-mode absolute)]
-            (should= 0xff (mem-read new-cpu 0x0000)))))
+            (should= 0xff (first (io-> new-cpu
+                                       (io-read 0)))))))
 
       (describe "sta"
         (it "should store the accumulator in the address mode"
           (let [new-cpu (*sta (assoc cpu :a 0xff) :address-mode absolute)]
-            (should= 0xff (mem-read new-cpu 0x0000))))))
+            (should= 0xff (first (io-> new-cpu
+                                       (io-read 0))))))))
 
     (describe "shifts and rotates"
       (describe "ror"
@@ -135,10 +141,10 @@
     (describe "system functions"
       (describe "brk"
         (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
-          (let [cpu-with-vector (-> cpu
-                                  (mem-write 0xff 0xffff)
-                                  (mem-write 0xee 0xfffe))
-                new-cpu (*brk cpu-with-vector)]
+            (let [[_ cpu-with-vector] (io-> cpu
+                                            (io-write 0xff 0xffff)
+                                            (io-write 0xee 0xfffe))
+                  new-cpu (*brk cpu-with-vector)]
             (should= 0xffee (:pc new-cpu))))
 
         (it "should push the current program counter (plus 1) to the stack"
@@ -232,17 +238,17 @@
       (describe "rts"
         (it "should pull the program counter from the stack and then add one to it"
           (let [cpu-with-pc (-> cpu
-                              (push 0xff)
-                              (push 0xdd))
+                              (stack-push 0xff)
+                              (stack-push 0xdd))
                 new-cpu (*rts cpu-with-pc)]
             (should= 0xffde (:pc new-cpu)))))
 
       (describe "rti"
         (it "should pull the program counter from the stack after pulling flags"
           (let [cpu-with-p-and-pc (-> cpu
-                                    (push 0xff)
-                                    (push 0xdd)
-                                    (push 0))
+                                    (stack-push 0xff)
+                                    (stack-push 0xdd)
+                                    (stack-push 0))
                 new-cpu (*rti cpu-with-p-and-pc)]
             (should= 0xffdd (:pc new-cpu))))
 
@@ -321,14 +327,15 @@
 
     (describe "decrement operations"
       (describe "dec"
-        (check-zero-flag-sets #(*dec (mem-write %1 1 0) :address-mode immediate))
+        (check-zero-flag-sets #(*dec (second (io-> %1 (io-write 1 0))) :address-mode immediate))
         (check-zero-flag-unsets #(*dec %1 :address-mode immediate))
         (check-negative-flag-sets #(*dec %1 :address-mode immediate))
-        (check-negative-flag-unsets #(*dec (mem-write %1 1 0) :address-mode immediate))
+        (check-negative-flag-unsets #(*dec (second (io-> %1 (io-write 1 0))) :address-mode immediate))
 
         (it "should decrement the value at the address mode by one"
           (let [new-cpu (*dec cpu :address-mode immediate)]
-            (should= 0xff (mem-read new-cpu 0)))))
+            (should= 0xff (first (io-> new-cpu
+                                       (io-read 0)))))))
 
       (map (fn [[op reg]]
              (describe (str op)
@@ -345,14 +352,15 @@
 
     (describe "increment operations"
       (describe "inc"
-        (check-zero-flag-sets #(*inc (mem-write %1 0xff 0) :address-mode immediate))
+        (check-zero-flag-sets #(*inc (second (io-> %1 (io-write 0xff 0))) :address-mode immediate))
         (check-zero-flag-unsets #(*inc %1 :address-mode immediate))
-        (check-negative-flag-sets #(*inc (mem-write %1 0x7f 0) :address-mode immediate))
+        (check-negative-flag-sets #(*inc (second (io-> %1 (io-write 0x7f 0))) :address-mode immediate))
         (check-negative-flag-unsets #(*inc %1 :address-mode immediate))
 
         (it "should increment the value at the address mode by one"
           (let [new-cpu (*inc cpu :address-mode immediate)]
-            (should= 1 (mem-read new-cpu 0)))))
+            (should= 1 (first (io-> new-cpu
+                                    (io-read 0)))))))
 
       (map (fn [[op reg]]
              (describe (str op)

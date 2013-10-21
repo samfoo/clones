@@ -240,7 +240,8 @@
 
 (defn store-op
   [cpu address-mode reg]
-  (mode-write address-mode cpu (reg cpu)))
+  (second (io-> cpu
+                (mode-write address-mode (reg cpu)))))
 
 (defop sta [0x85 zero-page
             0x95 zero-page-x
@@ -290,18 +291,18 @@
             0xf6 zero-page-x
             0xee absolute
             0xfe absolute-x]
-  (let [orig (mode-read address-mode cpu)
-        result (unsigned-byte (inc orig))
-        incd (mode-write address-mode cpu result)]
-    (-> incd
+   (let [[result after-io] ((with-io-> [orig (mode-read address-mode)
+                                        incd (let [result (unsigned-byte (inc orig))]
+                                               (mode-write address-mode result))]
+                                       incd) cpu)]
+     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
-
 
 (defop inx [0xe8 implied] (increment-op cpu :x))
 (defop iny [0xc8 implied] (increment-op cpu :y))
 
-(defn decrement-op
+(defn dec-reg-op
   [cpu reg]
   (let [result (unsigned-byte (dec (reg cpu)))]
     (-> cpu
@@ -313,49 +314,62 @@
             0xd6 zero-page-x
             0xce absolute
             0xde absolute-x]
-  (let [result (unsigned-byte (dec (mode-read address-mode cpu)))
-        decd (mode-write address-mode cpu result)]
-    (-> decd
+  (let [[result after-io] ((with-io-> [before (mode-read address-mode)
+                                       after (mode-write address-mode
+                                               (unsigned-byte
+                                                 (dec before)))]
+                                      after) cpu)]
+    (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
 
-(defop dex [0xca implied] (decrement-op cpu :x))
-(defop dey [0x88 implied] (decrement-op cpu :y))
+(defop dex [0xca implied] (dec-reg-op cpu :x))
+(defop dey [0x88 implied] (dec-reg-op cpu :y))
 
 ;; Stack pushing and popping
-(defn push [cpu v]
-  (-> cpu
-    (mem-write v (+ 0x100 (:sp cpu)))
-    (assoc :sp (unsigned-byte (dec (:sp cpu))))))
+(defn stack-top [cpu] (+ 0x100 (:sp cpu)))
 
-(defop pha [0x48 implied] (push cpu (:a cpu)))
-(defop php [0x08 implied] (push cpu (bit-or 0x10 (:p cpu))))
+(defn stack-next [top]
+  (unsigned-byte (+ 1 top)))
 
-(defn pull [cpu reg]
-  (let [v (mem-read cpu (+ 0x100 1 (:sp cpu)))]
-    (merge cpu {reg v :sp (inc (:sp cpu))})))
+(defn stack-push [cpu v]
+  (let [top (stack-top cpu)
+        [_ after-push] (io-> cpu
+                             (io-write v top))]
+    (assoc after-push :sp (unsigned-byte (dec top)))))
 
-(defn pull-pc [cpu]
-  (let [new-pc (mem-read-word cpu (+ 0x100 1 (:sp cpu)))]
-    (merge cpu {:pc new-pc :sp (+ 2 (:sp cpu))})))
+(defop pha [0x48 implied] (stack-push cpu (:a cpu)))
+(defop php [0x08 implied] (stack-push cpu (bit-or 0x10 (:p cpu))))
 
-(defn pull-flags [cpu]
-  (let [pulled (pull cpu :p)]
+(defn stack-pull [cpu reg]
+  (let [top (stack-top cpu)
+        [v after-pull] (io-> cpu
+                             (io-read (+ 1 (stack-top cpu))))]
+    (merge after-pull {reg v :sp (stack-next top)})))
+
+(defn stack-pull-pc [cpu]
+  (let [top (stack-top cpu)
+        [v after-pull] (io-> cpu
+                             (io-read-word (+ 1 (stack-top cpu))))]
+    (merge after-pull {:pc v :sp (stack-next (stack-next top))})))
+
+(defn stack-pull-flags [cpu]
+  (let [pulled (stack-pull cpu :p)]
     (-> pulled
       (set-flag break-flag false)
       (set-flag unused-flag true))))
 
 (defn interrupt-vector [cpu]
-  (mem-read-word cpu 0xfffe))
+  (io-> cpu (io-read-word 0xfffe)))
 
 (defop pla [0x68 implied]
-  (let [pulled (pull cpu :a)
+  (let [pulled (stack-pull cpu :a)
         result (:a pulled)]
     (-> pulled
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag (negative? result)))))
 
-(defop plp [0x28 implied] (pull-flags cpu))
+(defop plp [0x28 implied] (stack-pull-flags cpu))
 
 ;; Jumps and calls
 (defop jmp [0x4c absolute
@@ -367,17 +381,17 @@
         high (high-byte pc)
         low  (low-byte pc)]
     (-> cpu
-      (push high)
-      (push low)
+      (stack-push high)
+      (stack-push low)
       (assoc :pc operand))))
 
 (defop rti [0x40 implied]
   (-> cpu
-    (pull-flags)
-    (pull-pc)))
+    (stack-pull-flags)
+    (stack-pull-pc)))
 
 (defop rts [0x60 implied]
-  (let [pulled (pull-pc cpu)]
+  (let [pulled (stack-pull-pc cpu)]
     (assoc pulled :pc (inc (:pc pulled)))))
 
 ;; Branching
@@ -409,13 +423,13 @@
 
 (defop brk [0x00 implied]
   (let [pc (inc (:pc cpu))
-        interrupt (interrupt-vector cpu)
+        [interrupt after-read] (interrupt-vector cpu)
         high (high-byte pc)
         low  (low-byte pc)]
-    (-> cpu
-      (push high)
-      (push low)
-      (push (bit-or 0x10 (:p cpu)))
+    (-> after-read
+      (stack-push high)
+      (stack-push low)
+      (stack-push (bit-or 0x10 (:p after-read)))
       (assoc :pc interrupt))))
 
 ;; Shifts
@@ -425,12 +439,14 @@
             0x16 zero-page-x
             0x0e absolute
             0x1d absolute-x]
-  (let [orig (mode-read address-mode cpu)
-        result (unsigned-byte (bit-shift-left orig 1))
+  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+                                              after (mode-write address-mode
+                                                       (unsigned-byte
+                                                         (bit-shift-left before 1)))]
+                                             [before after]) cpu)
         carried? (bit-set? orig 0x80)
-        negative? (bit-set? result 0x80)
-        shifted (mode-write address-mode cpu result)]
-    (-> shifted
+        negative? (bit-set? result 0x80)]
+    (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
       (set-flag carry-flag carried?))))
@@ -440,47 +456,58 @@
             0x56 zero-page-x
             0x4e absolute
             0x5e absolute-x]
-  (let [orig (mode-read address-mode cpu)
-        result (unsigned-byte (bit-shift-right orig 1))
-        carried? (bit-set? orig 1)
-        shifted (mode-write address-mode cpu result)]
-    (-> shifted
+  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+                                              after (mode-write address-mode
+                                                      (unsigned-byte
+                                                        (bit-shift-right before 1)))]
+                                             [before after]) cpu)
+        carried? (bit-set? orig 1)]
+    (-> after-io
       (set-flag carry-flag carried?)
       (set-flag negative-flag false)
       (set-flag zero-flag (zero? result)))))
+
+(defn rotate-l [v]
+  (let [shifted (unsigned-byte (bit-shift-left v 1))]
+    (if (bit-set? v 0x80)
+      (bit-or 1 shifted)
+      shifted)))
 
 (defop rol [0x2a accumulator
             0x26 zero-page
             0x36 zero-page-x
             0x2e absolute
             0x3d absolute-x]
-  (let [orig (mode-read address-mode cpu)
-        shifted (unsigned-byte (bit-shift-left orig 1))
+  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+                                              after (mode-write address-mode
+                                                      (rotate-l before))]
+                                             [before after]) cpu)
         carried? (bit-set? orig 0x80)
-        result (if carried?
-                 (bit-or 1 shifted)
-                 shifted)
-        negative? (bit-set? result 0x80)
-        rotated (mode-write address-mode cpu result)]
-    (-> rotated
+        negative? (bit-set? result 0x80)]
+    (-> after-io
       (set-flag negative-flag negative?)
       (set-flag zero-flag (zero? result))
       (set-flag carry-flag carried?))))
+
+(defn rotate-r [v]
+  (let [shifted (unsigned-byte (bit-shift-right v 1))]
+    (if (bit-set? v 1)
+      (bit-or 0x80 shifted)
+      shifted)))
+
 
 (defop ror [0x6a accumulator
             0x66 zero-page
             0x76 zero-page-x
             0x6e absolute
             0x7e absolute-x]
-  (let [orig (mode-read address-mode cpu)
-        shifted (unsigned-byte (bit-shift-right orig 1))
+  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+                                              after (mode-write address-mode
+                                                      (rotate-r before))]
+                                             [before after]) cpu)
         carried? (bit-set? orig 1)
-        result (if carried?
-                 (bit-or 0x80 shifted)
-                 shifted)
-        negative? (bit-set? result 0x80)
-        rotated (mode-write address-mode cpu result)]
-    (-> rotated
+        negative? (bit-set? result 0x80)]
+    (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
       (set-flag carry-flag carried?))))

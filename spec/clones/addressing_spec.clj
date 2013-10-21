@@ -1,143 +1,155 @@
 (ns clones.addressing-spec
-  (:require [speclj.core       :refer :all]
-            [clones.cpu        :refer :all]
-            [clones.memory     :refer :all]
-            [clones.addressing :refer :all]))
+  (:require [speclj.core         :refer :all]
+            [clojure.algo.monads :refer :all]
+            [clones.cpu          :refer :all]
+            [clones.memory       :refer :all]
+            [clones.addressing   :refer :all]))
 
 (def cpu (make-cpu))
 (def cpu-with-zp
-  (let [zero-page-addr 0x55
-        new-cpu (mem-write cpu 0xbe zero-page-addr)]
-    (mem-write new-cpu 0x55 (:pc new-cpu))))
+  (let [zp-addr 0x55
+        [_ new-cpu] (io-> cpu
+                          (io-write 0xbe zp-addr)
+                          (io-write 0x55 (:pc cpu)))]
+    new-cpu))
+
+(defn do-mode-write [mode cpu v]
+  (second (io-> cpu
+                (mode-write mode v))))
+
+(defn do-mode-read [mode cpu]
+  (first (io-> cpu
+               (mode-read mode))))
+
+(defn do-mode [mode cpu]
+  (first (io-> cpu (mode))))
 
 (describe "6502 Operation Addressing Mode"
   (describe "indirect-indexed"
     (it "should be 'readWord(read(PC)) + Y'"
-      (let [new-cpu (-> cpu
-                      ;; Target address: 0x05ff
-                      ;; +------------------------+
-                      ;; |addr: 00 | 01 | 02 | 03 |
-                      ;; +------------------------+
-                      ;; |val : 02 | 00 | fd | 05 |
-                      ;; +------------------------+
-                      ;;       ^          ^
-                      ;;       PC         Pointer ref
-                      (assoc :y 2)
-                      (assoc :pc 0)
-                      (mem-write 0x02 0)
-                      (mem-write 0xfd 2)
-                      (mem-write 0x05 3))]
-        (should= 0x05ff (mode-addr indirect-indexed new-cpu)))))
+        (let [[_ new-cpu] (io-> (merge cpu {:y 2 :pc 0})
+                                ;; Target address: 0x05ff
+                                ;; +------------------------+
+                                ;; |addr: 00 | 01 | 02 | 03 |
+                                ;; +------------------------+
+                                ;; |val : 02 | 00 | fd | 05 |
+                                ;; +------------------------+
+                                ;;       ^          ^
+                                ;;       PC         Pointer ref
+                                (io-write 0x02 0)
+                                (io-write 0xfd 2)
+                                (io-write 0x05 3))]
+        (should= 0x05ff (do-mode indirect-indexed new-cpu)))))
 
   (describe "indexed-indirect"
     (it "should be 'readWord(read(PC) + X)'"
-      (let [new-cpu (-> cpu
-                      ;; Target address: 0x1005
-                      ;; +----------------------------------+
-                      ;; |addr: 00 | 01 | 02 | 03 | 04 | 05 |
-                      ;; +----------------------------------+
-                      ;; |val : 02 | 00 | 00 | 00 | 05 | 10 |
-                      ;; +----------------------------------+
-                      ;;       ^                    ^
-                      ;;       PC                   Pointer ref
-                      (assoc :x 2)
-                      (assoc :pc 0)
-                      (mem-write 0x02 0)
-                      (mem-write 0x05 4)
-                      (mem-write 0x10 5))]
-        (should= 0x1005 (mode-addr indexed-indirect new-cpu)))))
+      (let [[_ new-cpu] (io-> (merge cpu {:x 2 :pc 0})
+                              ;; Target address: 0x1005
+                              ;; +----------------------------------+
+                              ;; |addr: 00 | 01 | 02 | 03 | 04 | 05 |
+                              ;; +----------------------------------+
+                              ;; |val : 02 | 00 | 00 | 00 | 05 | 10 |
+                              ;; +----------------------------------+
+                              ;;       ^                    ^
+                              ;;       PC                   Pointer ref
+                              (io-write 2 0)
+                              (io-write 5 4)
+                              (io-write 0x10 5))]
+        (should= 0x1005 (do-mode indexed-indirect new-cpu)))))
 
   (describe "indirect"
     (it "should wrap the least significant byte of the indirect address if
         adding 1 to it would have wrapped to a new page"
-      (let [new-cpu (-> cpu
-                      (mem-write 0xff 0)
-                      (mem-write 0x01 1)
-                      (mem-write 0x00 0x0100)
-                      (mem-write 0x02 (+ 1 0x0100)))]
-        (should= 0x0200 (mode-addr indirect new-cpu))))
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xff 0)
+                              (io-write 1 1)
+                              (io-write 0 0x100)
+                              (io-write 2 0x101))]
+        (should= 0x200 (do-mode indirect new-cpu))))
 
     (it "should be 'readWord(readWord(PC) + 1)'"
-      (let [new-cpu (-> cpu
-                      (mem-write 0x00 0)
-                      (mem-write 0x01 1)
-                      (mem-write 0x00 (+ 1 0x0100))
-                      (mem-write 0x02 (+ 2 0x0100)))]
-        (should= 0x0200 (mode-addr indirect new-cpu)))))
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0 0)
+                              (io-write 1 1)
+                              (io-write 0 (+ 1 0x100))
+                              (io-write 2 (+ 2 0x100)))]
+        (should= 0x200 (do-mode indirect new-cpu)))))
 
   (describe "absolute-y"
     (it "should use the absolute address and add the value of Y"
-      (let [new-cpu (-> cpu
-                      (mem-write 0xef 0)
-                      (mem-write 0xbe 1)
-                      (assoc :y 0x10))]
-        (should= 0xbeff (mode-addr absolute-y new-cpu)))))
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xef 0)
+                              (io-write 0xbe 1))]
+        (should= 0xbeff (do-mode absolute-y (assoc new-cpu :y 0x10))))))
 
   (describe "absolute-x"
     (it "should use the absolute address and add the value of X"
-      (let [new-cpu (-> cpu
-                      (mem-write 0xef 0)
-                      (mem-write 0xbe 1)
-                      (assoc :x 0x10))]
-        (should= 0xbeff (mode-addr absolute-x new-cpu)))))
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xef 0)
+                              (io-write 0xbe 1))]
+        (should= 0xbeff (do-mode absolute-x (assoc new-cpu :x 0x10))))))
 
   (describe "absolute"
     (it "should be 'readWord(PC)'"
-      (let [new-cpu (-> cpu
-                      (mem-write 0xef 0)
-                      (mem-write 0xbe 1))]
-        (should= 0xbeef (mode-addr absolute new-cpu)))))
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xef 0)
+                              (io-write 0xbe 1))]
+        (should= 0xbeef (do-mode absolute new-cpu)))))
 
   (describe "relative"
     (it "should be 'read(PC) + (PC - 0x100) + 1' if read(PC) is >= 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)
-            new-cpu (mem-write cpu-with-pc 0x80 (:pc cpu-with-pc))]
-        (should= 0x0f81 (mode-addr relative new-cpu))))
+            [_ new-cpu] (io-> cpu-with-pc
+                              (io-write 0x80 (:pc cpu-with-pc)))]
+        (should= 0x0f81 (do-mode relative new-cpu))))
 
     (it "should be 'read(PC) + PC + 1' if read(PC) is < 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)
-            new-cpu (mem-write cpu-with-pc 0x79 (:pc cpu-with-pc))]
-        (should= 0x107a (mode-addr relative new-cpu)))))
+            [_ new-cpu] (io-> cpu-with-pc
+                              (io-write 0x79 (:pc cpu-with-pc)))]
+        (should= 0x107a (do-mode relative new-cpu)))))
 
   (describe "zero-page-y"
     (it "should wrap the resulting address to the first page if it would cross a page"
       (let [cpu-with-zp-y (assoc cpu-with-zp :y 0xff)]
-        (should= 0x0054 (mode-addr zero-page-y cpu-with-zp-y))))
+        (should= 0x0054 (do-mode zero-page-y cpu-with-zp-y))))
 
     (it "should use the zero-page address, and add the contents of the Y register"
       (let [cpu-with-zp-y (assoc cpu-with-zp :y 0x10)]
-        (should= 0x0065 (mode-addr zero-page-y cpu-with-zp-y)))))
+        (should= 0x0065 (do-mode zero-page-y cpu-with-zp-y)))))
 
   (describe "zero-page-x"
     (it "should wrap the resulting address to the first page if it would cross a page"
       (let [cpu-with-zp-x (assoc cpu-with-zp :x 0xff)]
-        (should= 0x0054 (mode-addr zero-page-x cpu-with-zp-x))))
+        (should= 0x0054 (do-mode zero-page-x cpu-with-zp-x))))
 
     (it "should use the zero-page address, and add the contents of the X register"
       (let [cpu-with-zp-x (assoc cpu-with-zp :x 0x10)]
-        (should= 0x0065 (mode-addr zero-page-x cpu-with-zp-x)))))
+        (should= 0x0065 (do-mode zero-page-x cpu-with-zp-x)))))
 
   (describe "zero-page"
     (it "should be '0x0000 + read(PC)'"
-      (should= 0x0055 (mode-addr zero-page cpu-with-zp))))
+      (should= 0x0055 (do-mode zero-page cpu-with-zp))))
 
   (describe "immediate"
     (it "should use whatever value PC points at"
       (let [new-cpu (assoc cpu :pc 0xbeef)]
-        (should= 0xbeef (mode-addr immediate new-cpu)))))
+        (should= 0xbeef (do-mode immediate new-cpu)))))
 
   (describe "implied"
     (it "should raise an error trying to read or write from the impled address mode"
       (should-throw Error "Can't read/write to the implied address mode"
-        (mode-write implied cpu 0xbe))
+        (do-mode-write implied cpu 0xbe))
+
       (should-throw Error "Can't read/write to the implied address mode"
-        (mode-read implied cpu))))
+        (do-mode-read implied cpu))))
 
   (describe "accumulator"
     (it "should write to the accumulator"
-      (let [cpu-with-acc (mode-write accumulator cpu 0xbe)]
-        (should= 0xbe (:a cpu-with-acc))))
+        (let [cpu-with-acc (do-mode-write accumulator cpu 0xbe)]
+          (should= 0xbe (:a cpu-with-acc))))
 
     (it "should read from the accumulator"
-      (let [cpu-with-acc (assoc cpu :a 0xbe)]
-        (should= 0xbe (mode-read accumulator cpu-with-acc))))))
+      (let [cpu-with-acc (assoc cpu :a 0xbe)
+            result (do-mode-read accumulator cpu-with-acc)]
+        (should= 0xbe result)))))

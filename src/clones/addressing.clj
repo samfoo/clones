@@ -1,73 +1,96 @@
 (ns clones.addressing
-  (:require [clones.memory :refer :all]
-            [clones.byte   :refer :all]))
+  (:require [clones.memory       :refer :all]
+            [clones.byte         :refer :all]
+            [clojure.algo.monads :refer :all]))
 
-(defprotocol AddressMode
-  "A set of methods for accessing various address modes for reading/writing."
-  (mode-addr [am cpu] (str "Return the address to read/write from for this "
-                           "mode in the current CPU state or nil if not an "
-                           "address"))
-  (mode-read [am cpu] "Read a single byte from a CPU using this addressing mode")
-  (mode-write [am cpu v] "Write a single byte to a CPU using this addressing mode"))
+(defn accumulator [] (fn [cpu] [(:a cpu) cpu]))
 
-(defmacro defaddrmode [mode-name desc]
-  (let [klass (symbol (str (name mode-name) "-mode"))]
-    (if (keyword? desc)
-      `(do
-         (deftype ~klass [])
-         (extend-protocol clones.addressing/AddressMode
-           ~klass
-           (~'mode-addr [~'this ~'cpu] nil)
-           (~'mode-read [~'this ~'cpu] (~desc ~'cpu))
-           (~'mode-write [~'this ~'cpu ~'v] (assoc ~'cpu ~desc ~'v)))
-         (def ~mode-name (new ~klass)))
-      `(do
-         (deftype ~klass [])
-         (extend-protocol clones.addressing/AddressMode
-           ~klass
-           (~'mode-addr [~'this ~'cpu] ~desc)
-           (~'mode-read [~'this ~'cpu] (mem-read ~'cpu (~'mode-addr ~'this ~'cpu)))
-           (~'mode-write [~'this ~'cpu ~'v] (mem-write ~'cpu ~'v (~'mode-addr ~'this ~'cpu))))
-         (def ~mode-name (new ~klass))))))
+(defn immediate [] (fn [cpu] [(:pc cpu) cpu]))
 
-(defaddrmode implied
-  (do
+(defn implied []
+  (fn [_]
     (throw (Error. "Can't read/write to the implied address mode"))))
 
-(defaddrmode accumulator :a)
-(defaddrmode immediate (:pc cpu))
+(defn zero-page []
+  (with-io-> [cpu (fetch-state)
+              addr (io-read (:pc cpu))]
+             addr))
 
-(defn zero-page-reg [cpu reg]
-  (unsigned-byte
-    (+
-      (reg cpu)
-      (mem-read cpu (:pc cpu)))))
+(defn zero-page-reg [reg]
+  (with-io-> [zp-addr (zero-page)
+              cpu (fetch-state)]
+             (unsigned-byte (+ (reg cpu) zp-addr))))
 
-(defaddrmode zero-page (mem-read cpu (:pc cpu)))
-(defaddrmode zero-page-x (zero-page-reg cpu :x))
-(defaddrmode zero-page-y (zero-page-reg cpu :y))
+(defn zero-page-x [] (zero-page-reg :x))
+(defn zero-page-y [] (zero-page-reg :y))
 
-(defaddrmode relative
-  (let [offset (mem-read cpu (:pc cpu))]
-    (if (< offset 0x80)
-      (+ 1 (:pc cpu) offset)
-      (+ 1 (- (:pc cpu) 0x100) offset))))
+(defn relative []
+  (with-io-> [cpu (fetch-state)
+              offset (io-read (:pc cpu))]
+             (if (< offset 0x80)
+               (+ 1 (:pc cpu) offset)
+               (+ 1 (- (:pc cpu) 0x100) offset))))
 
-(defaddrmode absolute (mem-read-word cpu (:pc cpu)))
-(defaddrmode absolute-x (+ (:x cpu) (mode-addr absolute cpu)))
-(defaddrmode absolute-y (+ (:y cpu) (mode-addr absolute cpu)))
+(defn absolute []
+  (with-io-> [cpu (fetch-state)
+              addr (io-read-word (:pc cpu))]
+             addr))
 
-(defaddrmode indirect
-  (let [abs (mode-addr absolute cpu)
-        abs-wrapped (if (= 0xff (unsigned-byte abs))
-                      (bit-and abs 0xff00)
-                      (inc abs))]
-    (mem-read-word cpu abs-wrapped)))
+(defn absolute-x []
+  (with-io-> [cpu (fetch-state)
+              abs-addr (absolute)]
+             (+ (:x cpu) abs-addr)))
 
-(defaddrmode indexed-indirect
-  (let [pointer (mem-read cpu (:pc cpu))]
-    (mem-read-word cpu (+ pointer (:x cpu)))))
+(defn absolute-y []
+  (with-io-> [cpu (fetch-state)
+              abs-addr (absolute)]
+             (+ (:y cpu) abs-addr)))
 
-(defaddrmode indirect-indexed
-  (let [pointer (mem-read cpu (:pc cpu))]
-    (+ (mem-read-word cpu pointer) (:y cpu))))
+(defn wrap-abs-addr [abs-addr]
+  (if (= 0xff (unsigned-byte abs-addr))
+    (bit-and abs-addr 0xff00)
+    (inc abs-addr)))
+
+(defn indirect []
+  (with-io-> [abs-addr (absolute)
+              addr (io-read-word (wrap-abs-addr abs-addr))]
+             addr))
+
+(defn indexed-indirect []
+  (with-io-> [cpu (fetch-state)
+              pointer (io-read (:pc cpu))
+              addr (io-read-word (+ pointer (:x cpu)))]
+             addr))
+
+(defn indirect-indexed []
+  (with-io-> [cpu (fetch-state)
+              pointer (io-read (:pc cpu))
+              ind-pointer (io-read-word pointer)]
+             (+ ind-pointer (:y cpu))))
+
+(defn mode-write-mem [mode v]
+  (with-io-> [addr (mode)
+              result (io-write v addr)]
+             result))
+
+(defn mode-read-mem [mode]
+  (with-io-> [addr (mode)
+              result (io-read addr)]
+             result))
+
+(defn mode-write-reg [reg v]
+  (fn [cpu] [v (assoc cpu reg v)]))
+
+(defn mode-read-reg [reg]
+  (fn [cpu] [(reg cpu) cpu]))
+
+(defn mode-read [mode]
+  (if (= mode accumulator)
+    (mode-read-reg :a)
+    (mode-read-mem mode)))
+
+(defn mode-write [mode v]
+  (if (= mode accumulator)
+    (mode-write-reg :a v)
+    (mode-write-mem mode v)))
+
