@@ -1,4 +1,4 @@
-(ns clones.memory
+(ns clones.cpu.memory
   (:require [clojure.string :as str]
             [clojure.algo.monads :refer :all]))
 

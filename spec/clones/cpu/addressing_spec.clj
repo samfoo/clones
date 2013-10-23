@@ -1,9 +1,9 @@
-(ns clones.addressing-spec
-  (:require [speclj.core         :refer :all]
-            [clojure.algo.monads :refer :all]
-            [clones.cpu          :refer :all]
-            [clones.memory       :refer :all]
-            [clones.addressing   :refer :all]))
+(ns clones.cpu.addressing-spec
+  (:require [speclj.core           :refer :all]
+            [clojure.algo.monads   :refer :all]
+            [clones.cpu            :refer :all]
+            [clones.cpu.memory     :refer :all]
+            [clones.cpu.addressing :refer :all]))
 
 (def cpu (make-cpu))
 (def cpu-with-zp

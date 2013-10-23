@@ -1,7 +1,7 @@
 (ns clones.cpu
-  (:require [clones.memory     :refer :all]
-            [clones.byte       :refer :all]
-            [clones.addressing :refer :all]))
+  (:require [clones.cpu.memory     :refer :all]
+            [clones.cpu.addressing :refer :all]
+            [clones.byte           :refer :all]))
 
 (def op-codes {})
 (def ops {})

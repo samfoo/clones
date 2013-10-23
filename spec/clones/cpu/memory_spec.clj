@@ -1,6 +1,6 @@
-(ns clones.memory-spec
+(ns clones.cpu.memory-spec
   (:require [speclj.core         :refer :all]
-            [clones.memory       :refer :all]
+            [clones.cpu.memory   :refer :all]
             [clojure.algo.monads :refer :all]))
 
 (def mounts [])

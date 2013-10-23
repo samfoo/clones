@@ -1,5 +1,5 @@
-(ns clones.addressing
-  (:require [clones.memory       :refer :all]
+(ns clones.cpu.addressing
+  (:require [clones.cpu.memory   :refer :all]
             [clones.byte         :refer :all]
             [clojure.algo.monads :refer :all]))
 

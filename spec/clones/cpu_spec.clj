@@ -1,8 +1,8 @@
 (ns clones.cpu-spec
-  (:require [speclj.core       :refer :all]
-            [clones.cpu        :refer :all]
-            [clones.memory     :refer :all]
-            [clones.addressing :refer :all]))
+  (:require [speclj.core           :refer :all]
+            [clones.cpu            :refer :all]
+            [clones.cpu.memory     :refer :all]
+            [clones.cpu.addressing :refer :all]))
 
 (def cpu (make-cpu))
 (def cpu-with-carry (assoc cpu :p carry-flag))
