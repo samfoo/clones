@@ -3,22 +3,23 @@
             [clones.byte       :refer :all]
             [clones.addressing :refer :all]))
 
-(def operations {})
+(def op-codes {})
+(def ops {})
+
+(defn op [n] (n ops))
 
 (defmacro defop [op-name opcodes action]
   (let [fn-args ['cpu '&
                  {:keys ['operand 'address-mode]
                   :or {'operand nil
-                       'address-mode nil}}]
-        fn-name (symbol (str "*" (name op-name)))]
-    `(let [~'op-fn (defn ~fn-name
-                   ~fn-args
-                   ~action)]
-      (def operations
+                       'address-mode nil}}]]
+    `(let [~'op-fn (fn ~fn-args ~action)]
+       (def ops (assoc ops (keyword '~op-name) ~'op-fn))
+       (def op-codes
          (reduce (fn [~'m ~'op]
                    (assoc ~'m (first ~'op) {:address-mode (second ~'op)
                                             :op ~'op-fn}))
-                 operations
+                 op-codes
                  (partition 2 ~opcodes))))))
 
 (defn make-cpu []
