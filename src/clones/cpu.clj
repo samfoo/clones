@@ -1,6 +1,7 @@
 (ns clones.cpu
   (:require [clones.cpu.memory     :refer :all]
             [clones.cpu.addressing :refer :all]
+            [clones.cpu.debug      :refer :all]
             [clones.byte           :refer :all]))
 
 (def op-codes {})
@@ -18,7 +19,8 @@
        (def op-codes
          (reduce (fn [~'m ~'op]
                    (assoc ~'m (first ~'op) {:address-mode (second ~'op)
-                                            :op ~'op-fn}))
+                                            :op ~'op-fn
+                                            :asm (name '~op-name)}))
                  op-codes
                  (partition 2 ~opcodes))))))
 
@@ -27,12 +29,31 @@
                :x 0
                :y 0
                :sp (unsigned-byte 0xfd)
-               :p 0
+               :p 24
                :pc 0}
         memory (-> []
-                 (mount-device 0      0x1fff {})   ;; 8kb of internal ram.
-                 (mount-device 0xfffa 0xffff {}))] ;; Interrupt vectors.
+                 (mount-device 0      0x1fff {}))]   ;; 8kb of internal ram.
     (assoc state :memory memory)))
+
+(defn- inc-pc [cpu]
+  (assoc cpu :pc (inc (:pc cpu))))
+
+(defn debug-step [cpu]
+  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
+        {:keys [address-mode op asm]} (get op-codes op-code)]
+    (format "%04X %02X %s %4s %-27s %s"
+            (:pc cpu)
+            op-code
+            (debug-ops-argument cpu address-mode)
+            (clojure.string/upper-case asm)
+            (debug-address-mode cpu address-mode asm)
+            (debug-cpu-state cpu))))
+
+(defn step [cpu]
+  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
+        {:keys [address-mode op asm]} (get op-codes op-code)
+        after-pc-inc (inc-pc after-read)]
+    (op after-pc-inc :address-mode address-mode)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 

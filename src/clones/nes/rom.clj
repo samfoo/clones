@@ -153,6 +153,6 @@
         chr-data (->> data
                    (drop chr-offset)
                    (take (:chr-rom-size header)))]
-    (merge header {:prg-data prg-data
-                   :chr-data chr-data})))
+    (merge header {:prg-data (vec prg-data)
+                   :chr-data (vec chr-data)})))
 

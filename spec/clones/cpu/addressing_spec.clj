@@ -25,6 +25,19 @@
   (first (io-> cpu (mode))))
 
 (describe "6502 Operation Addressing Mode"
+  (describe "mode-size"
+    (it "should say all other modes are zero"
+      (for [mode #{implied accumulator}]
+        (should= 0 (mode-size mode))))
+
+    (it "should say all modes that require one byte to read are one"
+      (for [mode #{immediate zero-page zero-page-x zero-page-y indexed-indirect indirect-indexed relative}]
+        (should= 1 (mode-size mode))))
+
+    (it "should say all modes that require two bytes to read are two"
+      (for [mode #{absolute absolute-x absolute-y indirect}]
+        (should= 2 (mode-size mode)))))
+
   (describe "indirect-indexed"
     (it "should be 'readWord(read(PC)) + Y'"
         (let [[_ new-cpu] (io-> (merge cpu {:y 2 :pc 0})

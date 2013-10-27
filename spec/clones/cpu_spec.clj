@@ -139,25 +139,26 @@
             (should= 2 (:a cpu-shifted))))))
 
     (describe "system functions"
-      (describe "brk"
-        (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
-            (let [[_ cpu-with-vector] (io-> cpu
-                                            (io-write 0xff 0xffff)
-                                            (io-write 0xee 0xfffe))
-                  new-cpu ((op :brk) cpu-with-vector)]
-            (should= 0xffee (:pc new-cpu))))
+      (let [cpu (io-mount cpu 0xfffa 0xffff {})]
+        (describe "brk"
+          (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
+              (let [[_ cpu-with-vector] (io-> cpu
+                                              (io-write 0xff 0xffff)
+                                              (io-write 0xee 0xfffe))
+                    new-cpu ((op :brk) cpu-with-vector)]
+              (should= 0xffee (:pc new-cpu))))
 
-        (it "should push the current program counter (plus 1) to the stack"
-          (let [new-cpu ((op :brk) (assoc cpu :pc 0xbeef))
-                low (peek-stack-n new-cpu 1)
-                high (peek-stack-n new-cpu 2)]
-            (should= 0xbe high)
-            (should= 0xf0 low)))
+          (it "should push the current program counter (plus 1) to the stack"
+            (let [new-cpu ((op :brk) (assoc cpu :pc 0xbeef))
+                  low (peek-stack-n new-cpu 1)
+                  high (peek-stack-n new-cpu 2)]
+              (should= 0xbe high)
+              (should= 0xf0 low)))
 
-        (it "should push processor flags to the stack with the interrupt flag set"
-          (let [new-cpu ((op :brk) cpu)
-                stack-top (peek-stack new-cpu)]
-            (should= 0x10 stack-top))))
+          (it "should push processor flags to the stack with the interrupt flag set"
+            (let [new-cpu ((op :brk) (assoc cpu :p 0))
+                  stack-top (peek-stack new-cpu)]
+              (should= 0x10 stack-top)))))
 
       (describe "nop"
         (it "should do nothing"
@@ -299,9 +300,9 @@
         (it "should always push the break flag as 1"
           ;; NOTE: This is only in the NES's 6502... should there be a way of
           ;; setting it so that the CPU can behave either way?
-          (let [new-cpu ((op :php) cpu)
+          (let [new-cpu ((op :php) (assoc cpu :p 0))
                 stack-top (peek-stack new-cpu)]
-            (should= 0 (:p cpu))
+            (should= 0 (:p new-cpu))
             (should= break-flag stack-top)))
 
         (it "should push processor flags to the stack"

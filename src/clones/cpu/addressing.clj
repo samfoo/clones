@@ -94,3 +94,12 @@
     (mode-write-reg :a v)
     (mode-write-mem mode v)))
 
+(defn mode-size [mode]
+  (if (contains? #{immediate zero-page zero-page-x zero-page-y indexed-indirect indirect-indexed relative}
+                 mode)
+    1
+    (if (contains? #{absolute absolute-x absolute-y indirect}
+                   mode)
+      2
+      0)))
+

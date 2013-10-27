@@ -9,7 +9,7 @@
                             mutated device (or a new instance)"))
 
 (extend-protocol Device
-  clojure.lang.APersistentMap
+  clojure.lang.Associative
   (device-read [device addr] [(get device addr 0) device])
   (device-write [device v addr] [v (assoc device addr v)]))
 
@@ -54,7 +54,8 @@
                              (fn [m]
                                (if (mount-contains? m addr)
                                  (let [device (:device m)
-                                       [_ device-after-write] (device-write device v addr)]
+                                       relative-addr (- addr (:start m))
+                                       [_ device-after-write] (device-write device v relative-addr)]
                                    (assoc m :device device-after-write))
                                  m))
                              mounts)]
@@ -64,7 +65,8 @@
   (error-if-invalid-addr mounts addr)
   (reduce (fn [[result mounts-state] m]
             (if (mount-contains? m addr)
-              (let [[v device-after-read] (device-read (:device m) addr)
+              (let [relative-addr (- addr (:start m))
+                    [v device-after-read] (device-read (:device m) relative-addr)
                     mount-after-read (assoc m :device device-after-read)]
                 [v (conj mounts-state mount-after-read)])
               [result (conj mounts-state m)])) [nil []] mounts))
@@ -73,6 +75,12 @@
   (assoc dev :memory (mounts-write (:memory dev)
                                     v
                                     addr)))
+
+(defn io-mount [dev start-addr end-addr mountable]
+  (assoc dev :memory
+         (mount-device (:memory dev)
+                       start-addr end-addr
+                       mountable)))
 
 (defn io-read [addr]
   (fn [dev]
@@ -99,4 +107,12 @@
        (~'step (second ~'mem)))
      [nil ~dev]
      [~@steps]))
+
+(defmacro io-debug-> [dev & steps]
+  `(first
+     (reduce
+       (fn [~'mem ~'step]
+         (~'step (second ~'mem)))
+       [nil ~dev]
+       [~@steps])))
 
