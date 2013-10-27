@@ -37,7 +37,6 @@
         value (if (not= mode implied)
                 (io-debug-> (inc-pc cpu) (mode-read mode))
                 nil)]
-  (println mode)
   (condp = mode
     immediate (format "#$%02X" arg)
     zero-page (format "$%02X = %02X"

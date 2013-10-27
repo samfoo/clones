@@ -26,7 +26,7 @@
                :x 0
                :y 0
                :sp (unsigned-byte 0xfd)
-               :p 24
+               :p 0x24
                :pc 0}
         memory (-> []
                  (mount-device 0 0x1fff {}))]   ;; 8kb of internal ram.
@@ -34,6 +34,14 @@
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))
+
+(defn- execute [cpu op name address-mode]
+  (let [next-cpu (op cpu address-mode)]
+    (if (contains? #{"jsr" "jmp" "rti" "rts" "brk"} name)
+      next-cpu
+      (assoc next-cpu :pc (+
+                            (:pc next-cpu)
+                            (mode-size address-mode))))))
 
 (defn debug-step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
@@ -48,16 +56,9 @@
 
 (defn step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        op-details (get op-codes op-code)
-        address-mode (:address-mode op-details)
-        op (:op op-details)
-        [operand after-operand-read] (if (= address-mode implied)
-                                       [nil after-read]
-                                       (io-> after-read
-                                             (address-mode)))
-        next-cpu (inc-pc after-operand-read)
-        args (merge op-details {:operand operand})]
-    (op next-cpu address-mode)))
+        {:keys [address-mode op name]} (get op-codes op-code)]
+    (debug-step cpu)
+    (execute (inc-pc after-read) op name address-mode)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
