@@ -16,7 +16,7 @@
 (defn debug-ops-argument [cpu mode]
   (condp = (mode-size mode)
     0 (format "%-5s" " ")
-    1 (format "%02X   " (op-code-arg cpu))
+    1 (format "%02X   " (op-code-arg cpu mode))
     2 (format "%02X %02X"
               (io-debug-> cpu (io-read (inc (:pc cpu))))
               (io-debug-> cpu (io-read (+ 2 (:pc cpu)))))))
@@ -39,7 +39,7 @@
                 nil)]
   (println mode)
   (condp = mode
-    immediate (format "#$%-26.02X" arg)
+    immediate (format "#$%02X" arg)
     zero-page (format "$%02X = %02X"
                       arg
                       value)

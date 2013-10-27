@@ -10,17 +10,14 @@
 (defn op [n] (n ops))
 
 (defmacro defop [op-name opcodes action]
-  (let [fn-args ['cpu '&
-                 {:keys ['operand 'address-mode]
-                  :or {'operand nil
-                       'address-mode nil}}]]
+  (let [fn-args ['cpu 'address-mode]]
     `(let [~'op-fn (fn ~fn-args ~action)]
        (def ops (assoc ops (keyword '~op-name) ~'op-fn))
        (def op-codes
          (reduce (fn [~'m ~'op]
                    (assoc ~'m (first ~'op) {:address-mode (second ~'op)
                                             :op ~'op-fn
-                                            :asm (name '~op-name)}))
+                                            :name (name '~op-name)}))
                  op-codes
                  (partition 2 ~opcodes))))))
 
@@ -32,7 +29,7 @@
                :p 24
                :pc 0}
         memory (-> []
-                 (mount-device 0      0x1fff {}))]   ;; 8kb of internal ram.
+                 (mount-device 0 0x1fff {}))]   ;; 8kb of internal ram.
     (assoc state :memory memory)))
 
 (defn- inc-pc [cpu]
@@ -40,20 +37,27 @@
 
 (defn debug-step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        {:keys [address-mode op asm]} (get op-codes op-code)]
+        {:keys [address-mode op name]} (get op-codes op-code)]
     (format "%04X %02X %s %4s %-27s %s"
             (:pc cpu)
             op-code
             (debug-ops-argument cpu address-mode)
-            (clojure.string/upper-case asm)
-            (debug-address-mode cpu address-mode asm)
+            (clojure.string/upper-case name)
+            (debug-address-mode cpu address-mode name)
             (debug-cpu-state cpu))))
 
 (defn step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        {:keys [address-mode op asm]} (get op-codes op-code)
-        after-pc-inc (inc-pc after-read)]
-    (op after-pc-inc :address-mode address-mode)))
+        op-details (get op-codes op-code)
+        address-mode (:address-mode op-details)
+        op (:op op-details)
+        [operand after-operand-read] (if (= address-mode implied)
+                                       [nil after-read]
+                                       (io-> after-read
+                                             (address-mode)))
+        next-cpu (inc-pc after-operand-read)
+        args (merge op-details {:operand operand})]
+    (op next-cpu address-mode)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
@@ -82,11 +86,12 @@
 
 ;; Comparison operations
 (defn compare-op
-  [cpu operand reg]
-  (let [result (unsigned-byte (- (reg cpu) operand))
-        register (unsigned-byte (reg cpu))
+  [cpu mode reg]
+  (let [[operand after-io] (io-> cpu (mode-read mode))
+        result (unsigned-byte (- (reg after-io) operand))
+        register (unsigned-byte (reg after-io))
         value (unsigned-byte operand)]
-    (-> cpu
+    (-> after-io
       (set-flag carry-flag (>= register value))
       (set-flag negative-flag (negative? result))
       (set-flag zero-flag (zero? result)))))
@@ -99,17 +104,17 @@
             0xd9 absolute-y
             0xc1 indexed-indirect
             0xd1 indirect-indexed]
-  (compare-op cpu operand :a))
+  (compare-op cpu address-mode :a))
 
 (defop cpx [0xe0 immediate
             0xe4 zero-page
             0xec absolute]
-  (compare-op cpu operand :x))
+  (compare-op cpu address-mode :x))
 
 (defop cpy [0xc0 immediate
             0xc4 zero-page
             0xcc absolute]
-  (compare-op cpu operand :y))
+  (compare-op cpu address-mode :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?
@@ -147,7 +152,8 @@
             0x79 absolute-y
             0x61 indexed-indirect
             0x71 indirect-indexed]
-  (let [result (unsigned-byte (if (carry-flag? cpu)
+  (let [[operand cpu] (io-> cpu (mode-read address-mode))
+        result (unsigned-byte (if (carry-flag? cpu)
                  (+ (:a cpu) operand 1)
                  (+ (:a cpu) operand)))
         carried? (< result (:a cpu))
@@ -167,7 +173,8 @@
             0xf9 absolute-y
             0xe1 indexed-indirect
             0xf1 indirect-indexed]
-  (let [result (unsigned-byte (if (carry-flag? cpu)
+  (let [[operand cpu] (io-> cpu (mode-read address-mode))
+        result (unsigned-byte (if (carry-flag? cpu)
                  (- (:a cpu) operand)
                  (- (:a cpu) operand 1)))
         carried? (> result (:a cpu))
@@ -196,7 +203,8 @@
             0x39 absolute-y
             0x21 indexed-indirect
             0x31 indirect-indexed]
-  (logical-op cpu operand bit-and))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (logical-op after-io operand bit-and)))
 
 (defop ora [0x09 immediate
             0x05 zero-page
@@ -206,7 +214,8 @@
             0x19 absolute-y
             0x01 indexed-indirect
             0x11 indirect-indexed]
-  (logical-op cpu operand bit-or))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (logical-op after-io operand bit-or)))
 
 (defop eor [0x49 immediate
             0x45 zero-page
@@ -216,13 +225,15 @@
             0x59 absolute-y
             0x41 indexed-indirect
             0x51 indirect-indexed]
-  (logical-op cpu operand bit-xor))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (logical-op after-io operand bit-xor)))
 
 (defop bit [0x24 zero-page
             0x2c absolute]
-  (let [result (unsigned-byte (bit-and (:a cpu) operand))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        result (unsigned-byte (bit-and (:a after-io) operand))
         overflowed? (== 0x40 (bit-and result 0x40))]
-    (-> cpu
+    (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag overflow-flag overflowed?)
       (set-flag negative-flag (negative? result)))))
@@ -244,21 +255,24 @@
             0xb9 absolute-y
             0xa1 indexed-indirect
             0xb1 indirect-indexed]
-  (load-op cpu operand :a))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (load-op after-io operand :a)))
 
 (defop ldx [0xa2 immediate
             0xa6 zero-page
             0xb6 zero-page-x
             0xae absolute
             0xbe absolute-x]
-  (load-op cpu operand :x))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (load-op after-io operand :x)))
 
 (defop ldy [0xa0 immediate
             0xa4 zero-page
             0xb4 zero-page-x
             0xac absolute
             0xbc absolute-x]
-  (load-op cpu operand :y))
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (load-op after-io operand :y)))
 
 (defn store-op
   [cpu address-mode reg]
@@ -396,16 +410,20 @@
 ;; Jumps and calls
 (defop jmp [0x4c absolute
             0x6c indirect]
-  (assoc cpu :pc operand))
+  (let [[where after-io] (io-> cpu
+                               (address-mode))]
+    (assoc after-io :pc where)))
 
 (defop jsr [0x20 absolute]
   (let [pc (dec (:pc cpu))
         high (high-byte pc)
-        low  (low-byte pc)]
-    (-> cpu
+        low  (low-byte pc)
+        [where after-io] (io-> cpu
+                               (address-mode))]
+    (-> after-io
       (stack-push high)
       (stack-push low)
-      (assoc :pc operand))))
+      (assoc :pc where))))
 
 (defop rti [0x40 implied]
   (-> cpu
@@ -417,19 +435,20 @@
     (assoc pulled :pc (inc (:pc pulled)))))
 
 ;; Branching
-(defn branch-if [cpu predicate addr]
-  (if predicate
-    (assoc cpu :pc addr)
-    cpu))
+(defn branch-if [cpu predicate]
+  (let [[addr after-io] (io-> cpu (relative))]
+    (if predicate
+      (assoc after-io :pc addr)
+      after-io)))
 
-(defop bcc [0x90 relative] (branch-if cpu (not (carry-flag? cpu)) operand))
-(defop bcs [0xb0 relative] (branch-if cpu (carry-flag? cpu) operand))
-(defop beq [0xf0 relative] (branch-if cpu (zero-flag? cpu) operand))
-(defop bmi [0x30 relative] (branch-if cpu (negative-flag? cpu) operand))
-(defop bne [0xd0 relative] (branch-if cpu (not (zero-flag? cpu)) operand))
-(defop bpl [0x10 relative] (branch-if cpu (not (negative-flag? cpu)) operand))
-(defop bvc [0x50 relative] (branch-if cpu (not (overflow-flag? cpu)) operand))
-(defop bvs [0x70 relative] (branch-if cpu (overflow-flag? cpu) operand))
+(defop bcc [0x90 relative] (branch-if cpu (not (carry-flag? cpu))))
+(defop bcs [0xb0 relative] (branch-if cpu (carry-flag? cpu)))
+(defop beq [0xf0 relative] (branch-if cpu (zero-flag? cpu)))
+(defop bmi [0x30 relative] (branch-if cpu (negative-flag? cpu)))
+(defop bne [0xd0 relative] (branch-if cpu (not (zero-flag? cpu))))
+(defop bpl [0x10 relative] (branch-if cpu (not (negative-flag? cpu))))
+(defop bvc [0x50 relative] (branch-if cpu (not (overflow-flag? cpu))))
+(defop bvs [0x70 relative] (branch-if cpu (overflow-flag? cpu)))
 
 ;; Status flag changes
 (defop clc [0x18 implied] (set-flag cpu carry-flag false))

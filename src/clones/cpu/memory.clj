@@ -1,6 +1,7 @@
 (ns clones.cpu.memory
-  (:require [clojure.string :as str]
-            [clojure.algo.monads :refer :all]))
+  (:require [clojure.string      :as str]
+            [clojure.algo.monads :refer :all]
+            [clones.byte         :refer :all]))
 
 (defprotocol Device
   "A memory mapped I/O device that can be read from or written to."
@@ -91,6 +92,14 @@
   (fn [dev]
     (let [[v mounts-after-write] (mounts-write (:memory dev) v addr)]
       [v (assoc dev :memory mounts-after-write)])))
+
+(defn io-write-word [v addr]
+  (let [high (high-byte v)
+        low (low-byte v)]
+    (domonad state-m
+             [a (io-write high (+ 1 addr))
+              b (io-write low addr)]
+             b)))
 
 (defn io-read-word [addr]
   (domonad state-m

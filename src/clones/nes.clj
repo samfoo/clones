@@ -8,8 +8,8 @@
   (let [rom (read-rom rom-file)
         cpu (make-cpu)
         cpu-with-rom (-> cpu
-                       (io-mount 0x8000 0xbfff (:prg-data))
-                       (io-mount 0xc000 0xffff (:prg-data)))
+                       (io-mount 0x8000 0xbfff (:prg-data rom))
+                       (io-mount 0xc000 0xffff (:prg-data rom)))
         cpu-ready (assoc cpu-with-rom :pc 0xc000)]
     cpu-ready))
 
