@@ -43,21 +43,10 @@
                             (:pc next-cpu)
                             (mode-size address-mode))))))
 
-(defn debug-step [cpu]
-  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        {:keys [address-mode op name]} (get op-codes op-code)]
-    (format "%04X %02X %s %4s %-27s %s"
-            (:pc cpu)
-            op-code
-            (debug-ops-argument cpu address-mode)
-            (clojure.string/upper-case name)
-            (debug-address-mode cpu address-mode name)
-            (debug-cpu-state cpu))))
-
 (defn step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
         {:keys [address-mode op name]} (get op-codes op-code)]
-    (debug-step cpu)
+    (println (debug-step cpu op name address-mode))
     (execute (inc-pc after-read) op name address-mode)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))

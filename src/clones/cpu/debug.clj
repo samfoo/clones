@@ -78,3 +78,13 @@
     accumulator (format "%s" "A")
     implied "")))
 
+(defn debug-step [cpu op name address-mode]
+  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))]
+    (format "%04X %02X %s %4s %-27s %s"
+            (:pc cpu)
+            op-code
+            (debug-ops-argument cpu address-mode)
+            (clojure.string/upper-case name)
+            (debug-address-mode cpu address-mode name)
+            (debug-cpu-state cpu))))
+
