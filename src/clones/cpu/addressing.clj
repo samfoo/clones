@@ -68,6 +68,21 @@
               ind-pointer (io-read-word pointer)]
              (+ ind-pointer (:y cpu))))
 
+(defn mode-by-name [n]
+  (n {:zero-page zero-page
+      :zero-page-x zero-page-x
+      :zero-page-y zero-page-y
+      :accumulator accumulator
+      :implied implied
+      :immediate immediate
+      :absolute absolute
+      :absolute-y absolute-y
+      :absolute-x absolute-x
+      :indirect indirect
+      :relative relative
+      :indexed-indirect indexed-indirect
+      :indirect-indexed indirect-indexed}))
+
 (defn mode-write-mem [mode v]
   (with-io-> [addr (mode)
               result (io-write v addr)]

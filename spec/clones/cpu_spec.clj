@@ -38,6 +38,13 @@
       (it "should set the carry flag when the result carries"
         (should (carry-flag? (c cpu)))))
 
+    (defn check-pc-increments [c op vs]
+      (map (fn [[amount mode]]
+             (it (format "should increment the program counter by %d when mode %s" amount mode)
+               (let [result (op c (mode-by-name mode))]
+                 (should= (+ amount (:pc c)) (:pc result)))))
+           (partition 2 vs)))
+
     (defn peek-stack-n [c n]
       (first
         (io-> c
@@ -62,18 +69,34 @@
 
     (describe "store operations"
       (describe "sty"
+        (check-pc-increments cpu (op :sty) [1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute])
+
         (it "should store the y register in the address mode"
           (let [new-cpu ((op :sty) (assoc cpu :y 0xff) absolute)]
             (should= 0xff (first (io-> new-cpu
                                        (io-read 0)))))))
 
       (describe "stx"
+        (check-pc-increments cpu (op :stx) [1 :zero-page
+                                            1 :zero-page-y
+                                            2 :absolute])
+
         (it "should store the x register in the address mode"
           (let [new-cpu ((op :stx) (assoc cpu :x 0xff) absolute)]
             (should= 0xff (first (io-> new-cpu
                                        (io-read 0)))))))
 
       (describe "sta"
+        (check-pc-increments cpu (op :sta) [1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x
+                                            2 :absolute-y
+                                            1 :indexed-indirect
+                                            1 :indirect-indexed])
+
         (it "should store the accumulator in the address mode"
           (let [new-cpu ((op :sta) (assoc cpu :a 0xff) absolute)]
             (should= 0xff (first (io-> new-cpu
@@ -81,6 +104,12 @@
 
     (describe "shifts and rotates"
       (describe "ror"
+        (check-pc-increments cpu (op :ror) [0 :accumulator
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :ror) %1 accumulator))
         (check-zero-flag-unsets #((op :ror) (assoc %1 :a 0x80) accumulator))
 
@@ -97,6 +126,12 @@
             (should= 0x90 (:a cpu-rotated)))))
 
       (describe "rol"
+        (check-pc-increments cpu (op :rol) [0 :accumulator
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :rol) %1 accumulator))
         (check-zero-flag-unsets #((op :rol) (assoc %1 :a 0x80) accumulator))
 
@@ -113,6 +148,12 @@
             (should= 5 (:a cpu-rotated)))))
 
       (describe "lsr"
+        (check-pc-increments cpu (op :lsr) [0 :accumulator
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :lsr) %1 accumulator))
         (check-zero-flag-unsets #((op :lsr) (assoc %1 :a 0x80) accumulator))
 
@@ -128,6 +169,12 @@
             (should= 0x40 (:a cpu-shifted)))))
 
       (describe "asl"
+        (check-pc-increments cpu (op :asl) [0 :accumulator
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :asl) %1 accumulator))
         (check-zero-flag-unsets #((op :asl) (assoc %1 :a 1) accumulator))
 
@@ -338,6 +385,11 @@
 
     (describe "decrement operations"
       (describe "dec"
+        (check-pc-increments cpu (op :dec) [1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :dec) (second (io-> %1 (io-write 1 0))) immediate))
         (check-zero-flag-unsets #((op :dec) %1 immediate))
         (check-negative-flag-sets #((op :dec) %1 immediate))
@@ -363,6 +415,11 @@
 
     (describe "increment operations"
       (describe "inc"
+        (check-pc-increments cpu (op :inc) [1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (check-zero-flag-sets #((op :inc) (second (io-> %1 (io-write 0xff 0))) immediate))
         (check-zero-flag-unsets #((op :inc) %1 immediate))
         (check-negative-flag-sets #((op :inc) (second (io-> %1 (io-write 0x7f 0))) immediate))
@@ -413,16 +470,37 @@
           (check-negative-flag-unsets #(op %1 immediate))))
 
       (describe "ldy"
+        (check-pc-increments cpu (op :ldy) [1 :immediate
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (it "should load the y register with the argument"
           (let [new-cpu ((op :ldy) (imm-n cpu 0xbb) immediate)]
             (should= (:y new-cpu) 0xbb))))
 
       (describe "ldx"
+        (check-pc-increments cpu (op :ldx) [1 :immediate
+                                            1 :zero-page
+                                            1 :zero-page-y
+                                            2 :absolute
+                                            2 :absolute-x])
+
         (it "should load the x register with the argument"
           (let [new-cpu ((op :ldx) (imm-n cpu 0xbb) immediate)]
             (should= (:x new-cpu) 0xbb))))
 
       (describe "lda"
+        (check-pc-increments cpu (op :lda) [1 :immediate
+                                            1 :zero-page
+                                            1 :zero-page-x
+                                            2 :absolute
+                                            2 :absolute-x
+                                            2 :absolute-y
+                                            1 :indexed-indirect
+                                            1 :indirect-indexed])
+
         (it "should load the accumulator with the argument"
           (let [new-cpu ((op :lda) (imm-n cpu 0xbb) immediate)]
             (should= (:a new-cpu) 0xbb)))))
@@ -430,6 +508,23 @@
     (describe "comparison operations"
       (def cpu-with-imm-1 (second (io-> cpu
                                         (io-write 1 0))))
+
+      (check-pc-increments cpu (op :cmp) [1 :immediate
+                                          1 :zero-page
+                                          1 :zero-page-x
+                                          2 :absolute
+                                          2 :absolute-x
+                                          2 :absolute-y
+                                          1 :indexed-indirect
+                                          1 :indirect-indexed])
+
+      (check-pc-increments cpu (op :cpx) [1 :immediate
+                                          1 :zero-page
+                                          2 :absolute])
+
+      (check-pc-increments cpu (op :cpy) [1 :immediate
+                                          1 :zero-page
+                                          2 :absolute])
 
       (map (fn [[op reg]]
         (describe (str op)
@@ -454,6 +549,9 @@
 
     (describe "logical operations"
       (describe "bit"
+        (check-pc-increments cpu (op :bit) [1 :zero-page
+                                            2 :absolute])
+
         (check-zero-flag-sets #((op :bit) %1 immediate))
         (check-zero-flag-unsets #((op :bit) (imm-n (assoc %1 :a 1) 1) immediate))
         (check-negative-flag-sets #((op :bit) (imm-n (assoc %1 :a 0x80) 0x80) immediate))
@@ -466,6 +564,17 @@
         (it "should unset the overflow flag when the 6th bit of the result is unset"
           (let [new-cpu ((op :bit) (set-flag cpu overflow-flag true) immediate)]
             (should-not (overflow-flag? new-cpu)))))
+
+      (map (fn [o]
+             (check-pc-increments cpu (op o) [1 :immediate
+                                              1 :zero-page
+                                              1 :zero-page-x
+                                              2 :absolute
+                                              2 :absolute-x
+                                              2 :absolute-y
+                                              1 :indexed-indirect
+                                              1 :indirect-indexed]))
+           [:eor :ora :and])
 
       (describe "eor"
         (check-zero-flag-sets #((op :eor) %1 immediate))
@@ -494,6 +603,15 @@
             (should= (:a new-cpu) 0xa5)))))
 
     (describe "sbc"
+      (check-pc-increments cpu (op :sbc) [1 :immediate
+                                          1 :zero-page
+                                          1 :zero-page-x
+                                          2 :absolute
+                                          2 :absolute-x
+                                          2 :absolute-y
+                                          1 :indexed-indirect
+                                          1 :indirect-indexed])
+
       (check-zero-flag-sets #((op :sbc) (assoc %1 :a 1) immediate))
       (check-zero-flag-unsets #((op :sbc) (imm-n %1 1) immediate))
       (check-negative-flag-sets #((op :sbc) %1 immediate))
@@ -532,6 +650,15 @@
             (should= (:a new-cpu) 0xff)))))
 
     (describe "adc"
+      (check-pc-increments cpu (op :adc) [1 :immediate
+                                          1 :zero-page
+                                          1 :zero-page-x
+                                          2 :absolute
+                                          2 :absolute-x
+                                          2 :absolute-y
+                                          1 :indexed-indirect
+                                          1 :indirect-indexed])
+
       (it "should overflow if the addition would exceed 0xff"
         (let [new-cpu ((op :adc) (assoc (imm-n cpu 1) :a 0xff) immediate)]
           (should= (:a new-cpu) 0)))
