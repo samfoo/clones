@@ -55,8 +55,6 @@
         (should= 0 (:pc (f should-not-branch relative)))
         (let [[_ should-branch] (io-> should-branch
                                       (io-write 0x50 0))]
-          ;; TODO: Not sure this is right? Why is 1 being added? Verify w/
-          ;; nestest & output
           (should= 0x51 (:pc (f should-branch relative))))))
 
     (defn imm-n [cpu n]

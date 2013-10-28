@@ -1,7 +1,6 @@
 (ns clones.cpu
   (:require [clones.cpu.memory     :refer :all]
             [clones.cpu.addressing :refer :all]
-            [clones.cpu.debug      :refer :all]
             [clones.byte           :refer :all]))
 
 (def op-codes {})
@@ -15,9 +14,10 @@
        (def ops (assoc ops (keyword '~op-name) ~'op-fn))
        (def op-codes
          (reduce (fn [~'m ~'op]
-                   (assoc ~'m (first ~'op) {:address-mode (second ~'op)
-                                            :op ~'op-fn
-                                            :name (name '~op-name)}))
+                   (assoc ~'m
+                          (first ~'op)
+                          (with-meta ~'op-fn {:address-mode (second ~'op)
+                                              :name (name '~op-name)})))
                  op-codes
                  (partition 2 ~opcodes))))))
 
@@ -35,8 +35,9 @@
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))
 
-(defn- execute [cpu op name address-mode]
-  (let [next-cpu (op cpu address-mode)]
+(defn- execute [cpu op]
+  (let [{:keys [address-mode name]} (meta op)
+        next-cpu (op cpu address-mode)]
     (if (contains? #{"jsr" "jmp" "rti" "rts" "brk"} name)
       next-cpu
       (assoc next-cpu :pc (+
@@ -45,9 +46,8 @@
 
 (defn step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        {:keys [address-mode op name]} (get op-codes op-code)]
-    (println (debug-step cpu op name address-mode))
-    (execute (inc-pc after-read) op name address-mode)))
+        op (get op-codes op-code)]
+    (execute (inc-pc after-read) op)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 

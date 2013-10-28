@@ -1,5 +1,6 @@
 (ns clones.cpu.debug
   (:require [clones.cpu.memory     :refer :all]
+            [clones.cpu            :refer :all]
             [clones.byte           :refer :all]
             [clones.cpu.addressing :refer :all]))
 
@@ -78,8 +79,10 @@
     accumulator (format "%s" "A")
     implied "")))
 
-(defn debug-step [cpu op name address-mode]
-  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))]
+(defn debug-step [cpu]
+  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
+        op (get op-codes op-code)
+        {:keys [address-mode name]} (meta op)]
     (format "%04X %02X %s %4s %-27s %s"
             (:pc cpu)
             op-code

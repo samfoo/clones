@@ -1,7 +1,8 @@
 (ns clones.nes
   (:gen-class :main true)
-  (:require [clones.cpu :refer :all]
-            [clones.nes.rom :refer :all]
+  (:require [clones.cpu        :refer :all]
+            [clones.nes.rom    :refer :all]
+            [clones.cpu.debug  :refer :all]
             [clones.cpu.memory :refer :all]))
 
 (defn init-nes [rom-file]
@@ -13,8 +14,13 @@
         cpu-ready (assoc cpu-with-rom :pc 0xc000)]
     cpu-ready))
 
-
 (defn -main [& args]
-  (let [cpu (init-nes (first args))]
-    (step cpu)))
+  (loop [machine (init-nes (first args))
+         times 0]
+    (if (< times 10)
+      (do
+        (println (debug-step machine))
+        (recur (step machine)
+               (inc times)))
+      (println "done"))))
 
