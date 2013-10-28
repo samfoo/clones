@@ -434,20 +434,20 @@
     (assoc pulled :pc (inc (:pc pulled)))))
 
 ;; Branching
-(defn branch-if [cpu predicate]
+(defn branch-if [cpu mode predicate]
   (let [[addr after-io] (io-> cpu (relative))]
     (if predicate
       (assoc after-io :pc addr)
-      after-io)))
+      (advance-pc after-io mode))))
 
-(defop bcc [0x90 relative] (branch-if cpu (not (carry-flag? cpu))))
-(defop bcs [0xb0 relative] (branch-if cpu (carry-flag? cpu)))
-(defop beq [0xf0 relative] (branch-if cpu (zero-flag? cpu)))
-(defop bmi [0x30 relative] (branch-if cpu (negative-flag? cpu)))
-(defop bne [0xd0 relative] (branch-if cpu (not (zero-flag? cpu))))
-(defop bpl [0x10 relative] (branch-if cpu (not (negative-flag? cpu))))
-(defop bvc [0x50 relative] (branch-if cpu (not (overflow-flag? cpu))))
-(defop bvs [0x70 relative] (branch-if cpu (overflow-flag? cpu)))
+(defop bcc [0x90 relative] (branch-if cpu address-mode (not (carry-flag? cpu))))
+(defop bcs [0xb0 relative] (branch-if cpu address-mode (carry-flag? cpu)))
+(defop beq [0xf0 relative] (branch-if cpu address-mode (zero-flag? cpu)))
+(defop bmi [0x30 relative] (branch-if cpu address-mode (negative-flag? cpu)))
+(defop bne [0xd0 relative] (branch-if cpu address-mode (not (zero-flag? cpu))))
+(defop bpl [0x10 relative] (branch-if cpu address-mode (not (negative-flag? cpu))))
+(defop bvc [0x50 relative] (branch-if cpu address-mode (not (overflow-flag? cpu))))
+(defop bvs [0x70 relative] (branch-if cpu address-mode (overflow-flag? cpu)))
 
 ;; Status flag changes
 (defop clc [0x18 implied] (set-flag cpu carry-flag false))

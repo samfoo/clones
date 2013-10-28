@@ -17,7 +17,7 @@
 (defn -main [& args]
   (loop [machine (init-nes (first args))
          times 0]
-    (if (< times 10)
+    (if (< times 20)
       (do
         (println (debug-step machine))
         (recur (step machine)
