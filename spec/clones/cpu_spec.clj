@@ -444,6 +444,11 @@
          (op :iny) :y}))
 
     (describe "register transfer operations"
+      (describe "txs"
+        (it "should transfer the value in the x register to the sp register"
+          (let [new-cpu ((op :txs) (assoc cpu :x 0x33) implied)]
+            (should= 0x33 (:sp new-cpu)))))
+
       (map (fn [[op [from-reg to-reg]]]
              (describe (str op)
                (check-zero-flag-sets #(op (assoc %1 from-reg 0) implied))
@@ -458,8 +463,7 @@
          (op :tay) [:a :y]
          (op :txa) [:x :a]
          (op :tya) [:y :a]
-         (op :tsx) [:sp :x]
-         (op :txs) [:x :sp]}))
+         (op :tsx) [:sp :x]}))
 
     (describe "loading operations"
       (for [op [(op :lda) (op :ldx) (op :ldy)]]

@@ -296,20 +296,24 @@
   (store-op cpu address-mode :y))
 
 ;; Register transfers
+(defn transfer-reg
+  [cpu from to]
+  (assoc cpu to (from cpu)))
+
 (defn transfer-reg-op
   [cpu from to]
   (let [result (from cpu)]
     (-> cpu
+      (transfer-reg from to)
       (set-flag zero-flag (zero? result))
-      (set-flag negative-flag (negative? result))
-      (assoc to result))))
+      (set-flag negative-flag (negative? result)))))
 
 (defop tax [0xaa implied] (transfer-reg-op cpu :a :x))
 (defop tay [0xa8 implied] (transfer-reg-op cpu :a :y))
 (defop txa [0x8a implied] (transfer-reg-op cpu :x :a))
 (defop tya [0x98 implied] (transfer-reg-op cpu :y :a))
 (defop tsx [0xba implied] (transfer-reg-op cpu :sp :x))
-(defop txs [0x9a implied] (transfer-reg-op cpu :x :sp))
+(defop txs [0x9a implied] (transfer-reg cpu :x :sp))
 
 ;; Increment & decrements
 (defn increment-op
