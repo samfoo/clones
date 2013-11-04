@@ -39,23 +39,37 @@
         (should= 2 (mode-size mode)))))
 
   (describe "indirect-indexed"
+    (it "should wrap the result if the address would be greater than two bytes"
+      (let [[_ new-cpu] (io-> (merge cpu {:pc 1 :y 0xff})
+                              (io-write 0xff 1)
+                              (io-write 0xff 0)
+                              (io-write 0xff 0xff))]
+        (should= 0xfe (do-mode indirect-indexed new-cpu))))
+
+    (it "should read the high byte from 0x00 when 'read(PC) + 1' would cross a page"
+      (let [[_ new-cpu] (io-> (assoc cpu :pc 1)
+                              (io-write 0xff 1)
+                              (io-write 0xbe 0)
+                              (io-write 0xef 0xff))]
+        (should= 0xbeef (do-mode indirect-indexed new-cpu))))
+
     (it "should be 'readWord(read(PC)) + Y'"
-        (let [[_ new-cpu] (io-> (merge cpu {:y 2 :pc 0})
-                                ;; Target address: 0x05ff
-                                ;; +------------------------+
-                                ;; |addr: 00 | 01 | 02 | 03 |
-                                ;; +------------------------+
-                                ;; |val : 02 | 00 | fd | 05 |
-                                ;; +------------------------+
-                                ;;       ^          ^
-                                ;;       PC         Pointer ref
-                                (io-write 0x02 0)
-                                (io-write 0xfd 2)
-                                (io-write 0x05 3))]
+      (let [[_ new-cpu] (io-> (merge cpu {:y 2 :pc 0})
+                              ;; Target address: 0x05ff
+                              ;; +------------------------+
+                              ;; |addr: 00 | 01 | 02 | 03 |
+                              ;; +------------------------+
+                              ;; |val : 02 | 00 | fd | 05 |
+                              ;; +------------------------+
+                              ;;       ^          ^
+                              ;;       PC         Pointer ref
+                              (io-write 0x02 0)
+                              (io-write 0xfd 2)
+                              (io-write 0x05 3))]
         (should= 0x05ff (do-mode indirect-indexed new-cpu)))))
 
   (describe "indexed-indirect"
-    (it "should read the high byte from 0x00 when 'read(PC) + X' would cross a page"
+    (it "should read the high byte from 0x00 when 'read(PC) + X + 1' would cross a page"
       (let [[_ new-cpu] (io-> (assoc cpu :pc 1)
                               (io-write 0xff 1)
                               (io-write 0xbe 0)

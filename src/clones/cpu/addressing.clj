@@ -66,8 +66,11 @@
 (defn indirect-indexed []
   (with-io-> [cpu (fetch-state)
               pointer (io-read (:pc cpu))
-              ind-pointer (io-read-word pointer)]
-             (+ ind-pointer (:y cpu))))
+              high (io-read (unsigned-byte (+ pointer 1)))
+              low (io-read (unsigned-byte pointer))]
+             (unsigned-word (+
+                              (bit-or (bit-shift-left high 8) low)
+                              (:y cpu)))))
 
 (defn mode-by-name [n]
   (n {:zero-page zero-page

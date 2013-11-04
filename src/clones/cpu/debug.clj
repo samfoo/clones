@@ -56,7 +56,7 @@
                      location)
     absolute (case op-name
                ("jmp" "jsr") (format "$%04X" location)
-               (format "$%04X = %-20.02X" location value))
+               (format "$%04X = %02X" location value))
     absolute-x (format "$%04X,X @ %04X = %02X"
                        (io-debug-> (inc-pc cpu) (absolute))
                        location
@@ -67,12 +67,12 @@
                        value)
     indexed-indirect (format "($%02X,X) @ %02X = %04X = %02X"
                              arg
-                             (+ arg (:x (inc-pc cpu)))
+                             (unsigned-byte (+ arg (:x (inc-pc cpu))))
                              location
                              value)
     indirect-indexed (format "($%02X),Y = %04X @ %04X = %02X"
                              arg
-                             (- location (:y (inc-pc cpu)))
+                             (unsigned-word (- location (:y (inc-pc cpu))))
                              location
                              value)
     relative (format "$%04X" location)
@@ -83,7 +83,7 @@
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (get op-codes op-code)
         {:keys [address-mode name]} (meta op)]
-    (format "%04X %02X %s %4s %-27s %s"
+    (format "%04X  %02X %s %4s %-27s %s"
             (:pc cpu)
             op-code
             (debug-ops-argument cpu address-mode)
