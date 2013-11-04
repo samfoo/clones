@@ -308,8 +308,8 @@
 (defop tay [0xa8 implied] (transfer-reg-op cpu :a :y))
 (defop txa [0x8a implied] (transfer-reg-op cpu :x :a))
 (defop tya [0x98 implied] (transfer-reg-op cpu :y :a))
-(defop tsx [0x9a implied] (transfer-reg-op cpu :sp :x))
-(defop txs [0xba implied] (transfer-reg-op cpu :x :sp))
+(defop tsx [0xba implied] (transfer-reg-op cpu :sp :x))
+(defop txs [0x9a implied] (transfer-reg-op cpu :x :sp))
 
 ;; Increment & decrements
 (defn increment-op
