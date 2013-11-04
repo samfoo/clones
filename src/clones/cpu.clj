@@ -165,13 +165,13 @@
             0xf9 absolute-y
             0xe1 indexed-indirect
             0xf1 indirect-indexed]
-  (let [[operand cpu] (io-> cpu (mode-read address-mode))
-        result (unsigned-byte (if (carry-flag? cpu)
-                 (- (:a cpu) operand)
-                 (- (:a cpu) operand 1)))
-        carried? (> result (:a cpu))
-        overflowed? (subtract-overflowed? (:a cpu) operand result)]
-    (-> cpu
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        result (unsigned-byte (if (carry-flag? after-io)
+                 (- (:a after-io) operand)
+                 (- (:a after-io) operand 1)))
+        carried? (> (:a cpu) result)
+        overflowed? (subtract-overflowed? (:a after-io) operand result)]
+    (-> after-io
       (set-flag carry-flag carried?)
       (set-flag overflow-flag overflowed?)
       (set-flag negative-flag (negative? result))

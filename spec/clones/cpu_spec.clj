@@ -617,8 +617,12 @@
       (check-negative-flag-sets #((op :sbc) %1 immediate))
       (check-negative-flag-unsets #((op :sbc) (imm-n %1 0xff) immediate))
 
+      (it "should set the carry flag when the result is equal to the old accumulator"
+        (let [new-cpu ((op :sbc) (imm-n (assoc cpu-with-carry :a 0x40) 0x40) immediate)]
+          (should (carry-flag? new-cpu))))
+
       (it "should set the carry flag when the result is an unsigned underflow"
-        (let [new-cpu ((op :sbc) (imm-n (assoc cpu :a 0) 1) immediate)]
+        (let [new-cpu ((op :sbc) (imm-n (assoc cpu :a 1) 0) immediate)]
           (should (carry-flag? new-cpu))))
 
       (it "should unset the carry flag when the result is not an unsigned underflow"
