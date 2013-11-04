@@ -191,7 +191,7 @@
 
 (defop and [0x29 immediate
             0x25 zero-page
-            0x45 zero-page-x
+            0x35 zero-page-x
             0x2d absolute
             0x3d absolute-x
             0x39 absolute-y
