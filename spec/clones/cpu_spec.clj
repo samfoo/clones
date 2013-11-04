@@ -335,7 +335,16 @@
             (should= 0xff (peek-stack-n new-cpu 1)))))
 
       (describe "jmp"
-        (it "should set the program counter to the argument"
+        (it "should set the program counter to the word at read($xx00) | read($xxff)
+            if the address mode is indirect and the pointer points to the end of the page"
+          (let [with-jmp-addr (second (io-> cpu
+                                            (io-write-word 0x00ff 1)
+                                            (io-write 0xef 0xff)
+                                            (io-write 0xbe 0)))
+                new-cpu ((op :jmp) (assoc with-jmp-addr :pc 1) indirect)]
+            (should= 0xbeef (:pc new-cpu))))
+
+        (it "should set the program counter to the word at the pointer"
           (let [with-jmp-addr (second (io-> cpu
                                             (io-write-word 0x1000 0)))
                 new-cpu ((op :jmp) with-jmp-addr absolute)]

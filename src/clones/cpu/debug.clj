@@ -51,9 +51,10 @@
                         (op-code-arg cpu)
                         (unsigned-byte location)
                         value)
-    indirect (format "($%04X) = %04X"
-                     (io-debug-> (inc-pc cpu) (absolute))
-                     location)
+    indirect (let [abs (io-debug-> (inc-pc cpu) (absolute))]
+               (format "($%04X) = %04X"
+                       abs
+                       (io-debug-> (inc-pc cpu) (io-read-word abs))))
     absolute (case op-name
                ("jmp" "jsr") (format "$%04X" location)
                (format "$%04X = %02X" location value))

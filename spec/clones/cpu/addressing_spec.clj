@@ -92,21 +92,18 @@
         (should= 0x1005 (do-mode indexed-indirect new-cpu)))))
 
   (describe "indirect"
-    (it "should wrap the least significant byte of the indirect address if
-        adding 1 to it would have wrapped to a new page"
+    (it "should be the word at read($xx00) | read($xxff) if the address mode
+        is indirect and the pointer points to the end of the page"
       (let [[_ new-cpu] (io-> cpu
-                              (io-write 0xff 0)
-                              (io-write 1 1)
-                              (io-write 0 0x100)
-                              (io-write 2 0x101))]
-        (should= 0x200 (do-mode indirect new-cpu))))
+                              (io-write-word 0x1ff 0)
+                              (io-write 0xbe 0x100)
+                              (io-write 0xef 0x1ff))]
+        (should= 0xbeef (do-mode indirect new-cpu))))
 
-    (it "should be 'readWord(readWord(PC) + 1)'"
+    (it "should be 'readWord(readWord(PC))'"
       (let [[_ new-cpu] (io-> cpu
-                              (io-write 0 0)
-                              (io-write 1 1)
-                              (io-write 0 (+ 1 0x100))
-                              (io-write 2 (+ 2 0x100)))]
+                              (io-write-word 0x100 0)
+                              (io-write-word 0x200 0x100))]
         (should= 0x200 (do-mode indirect new-cpu)))))
 
   (describe "absolute-y"

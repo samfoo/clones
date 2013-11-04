@@ -46,15 +46,16 @@
               abs-addr (absolute)]
              (+ (:y cpu) abs-addr)))
 
-(defn wrap-abs-addr [abs-addr]
-  (if (= 0xff (unsigned-byte abs-addr))
+(defn- indirect-high-addr [abs-addr]
+  (if (= 0xff (bit-and 0xff abs-addr))
     (bit-and abs-addr 0xff00)
-    (inc abs-addr)))
+    (+ 1 abs-addr)))
 
 (defn indirect []
   (with-io-> [abs-addr (absolute)
-              addr (io-read-word (wrap-abs-addr abs-addr))]
-             addr))
+              high (io-read (indirect-high-addr abs-addr))
+              low (io-read abs-addr)]
+             (bit-or (bit-shift-left high 8) low)))
 
 (defn indexed-indirect []
   (with-io-> [cpu (fetch-state)
