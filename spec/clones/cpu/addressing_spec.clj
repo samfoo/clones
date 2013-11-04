@@ -55,6 +55,13 @@
         (should= 0x05ff (do-mode indirect-indexed new-cpu)))))
 
   (describe "indexed-indirect"
+    (it "should read the high byte from 0x00 when 'read(PC) + X' would cross a page"
+      (let [[_ new-cpu] (io-> (assoc cpu :pc 1)
+                              (io-write 0xff 1)
+                              (io-write 0xbe 0)
+                              (io-write 0xef 0xff))]
+        (should= 0xbeef (do-mode indexed-indirect new-cpu))))
+
     (it "should be 'readWord(read(PC) + X)'"
       (let [[_ new-cpu] (io-> (merge cpu {:x 2 :pc 0})
                               ;; Target address: 0x1005

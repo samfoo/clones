@@ -59,8 +59,9 @@
 (defn indexed-indirect []
   (with-io-> [cpu (fetch-state)
               pointer (io-read (:pc cpu))
-              addr (io-read-word (+ pointer (:x cpu)))]
-             addr))
+              high (io-read (unsigned-byte (+ pointer (:x cpu) 1)))
+              low (io-read (unsigned-byte (+ pointer (:x cpu))))]
+             (bit-or (bit-shift-left high 8) low)))
 
 (defn indirect-indexed []
   (with-io-> [cpu (fetch-state)
