@@ -113,17 +113,23 @@
         (check-zero-flag-sets #((op :ror) %1 accumulator))
         (check-zero-flag-unsets #((op :ror) (assoc %1 :a 0x80) accumulator))
 
-        (check-negative-flag-sets #((op :ror) (assoc %1 :a 1) accumulator))
+        (check-negative-flag-sets #((op :ror) (assoc %1 :p carry-flag) accumulator))
         (check-negative-flag-unsets #((op :ror) (assoc %1 :a 0x40) accumulator))
 
         (check-carry-flag-sets #((op :ror) (assoc %1 :a 1) accumulator))
         (check-carry-flag-unsets #((op :ror) (assoc %1 :a 0x80) accumulator))
 
-        (it "should rotate the bits of the address mode right by 1"
+        (it "should set bit 7 of the result if the carry flag is set"
+          (let [cpu-rotated (-> cpu-with-carry
+                              (assoc :a 0x20)
+                              ((op :ror) accumulator))]
+            (should= 0x90 (:a cpu-rotated))))
+
+        (it "should shift the bits of the address mode right by 1"
           (let [cpu-rotated (-> cpu
                               (assoc :a 0x21)
                               ((op :ror) accumulator))]
-            (should= 0x90 (:a cpu-rotated)))))
+            (should= 0x10 (:a cpu-rotated)))))
 
       (describe "rol"
         (check-pc-increments cpu (op :rol) [0 :accumulator
@@ -133,7 +139,7 @@
                                             2 :absolute-x])
 
         (check-zero-flag-sets #((op :rol) %1 accumulator))
-        (check-zero-flag-unsets #((op :rol) (assoc %1 :a 0x80) accumulator))
+        (check-zero-flag-unsets #((op :rol) (assoc %1 :a 0x40) accumulator))
 
         (check-negative-flag-sets #((op :rol) (assoc %1 :a 0x40) accumulator))
         (check-negative-flag-unsets #((op :rol) (assoc %1 :a 1) accumulator))
@@ -141,11 +147,17 @@
         (check-carry-flag-sets #((op :rol) (assoc %1 :a 0x80) accumulator))
         (check-carry-flag-unsets #((op :rol) (assoc %1 :a 1) accumulator))
 
-        (it "should rotate the bits of the address mode left by 1"
+        (it "should set bit 0 of the result if the carry flag is set"
+          (let [cpu-rotated (-> cpu-with-carry
+                              (assoc :a 0x80)
+                              ((op :rol) accumulator))]
+            (should= 1 (:a cpu-rotated))))
+
+        (it "should shift the bits of the address mode left by 1"
           (let [cpu-rotated (-> cpu
                               (assoc :a 0x82)
                               ((op :rol) accumulator))]
-            (should= 5 (:a cpu-rotated)))))
+            (should= 4 (:a cpu-rotated)))))
 
       (describe "lsr"
         (check-pc-increments cpu (op :lsr) [0 :accumulator

@@ -513,9 +513,9 @@
       (set-flag zero-flag (zero? result))
       (advance-pc address-mode))))
 
-(defn rotate-l [v]
+(defn rotate-l [v carry?]
   (let [shifted (unsigned-byte (bit-shift-left v 1))]
-    (if (bit-set? v 0x80)
+    (if carry?
       (bit-or 1 shifted)
       shifted)))
 
@@ -524,9 +524,10 @@
             0x36 zero-page-x
             0x2e absolute
             0x3d absolute-x]
-  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+  (let [with-carry? (carry-flag? cpu)
+        [[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
-                                                      (rotate-l before))]
+                                                      (rotate-l before with-carry?))]
                                              [before after]) cpu)
         carried? (bit-set? orig 0x80)
         negative? (bit-set? result 0x80)]
@@ -536,21 +537,21 @@
       (set-flag carry-flag carried?)
       (advance-pc address-mode))))
 
-(defn rotate-r [v]
+(defn rotate-r [v carry?]
   (let [shifted (unsigned-byte (bit-shift-right v 1))]
-    (if (bit-set? v 1)
+    (if carry?
       (bit-or 0x80 shifted)
       shifted)))
-
 
 (defop ror [0x6a accumulator
             0x66 zero-page
             0x76 zero-page-x
             0x6e absolute
             0x7e absolute-x]
-  (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
+  (let [with-carry? (carry-flag? cpu)
+        [[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
-                                                      (rotate-r before))]
+                                                      (rotate-r before with-carry?))]
                                              [before after]) cpu)
         carried? (bit-set? orig 1)
         negative? (bit-set? result 0x80)]
