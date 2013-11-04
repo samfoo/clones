@@ -554,14 +554,14 @@
 
         (check-zero-flag-sets #((op :bit) %1 immediate))
         (check-zero-flag-unsets #((op :bit) (imm-n (assoc %1 :a 1) 1) immediate))
-        (check-negative-flag-sets #((op :bit) (imm-n (assoc %1 :a 0x80) 0x80) immediate))
+        (check-negative-flag-sets #((op :bit) (imm-n (assoc %1 :a 0) 0x80) immediate))
         (check-negative-flag-unsets #((op :bit) %1 immediate))
 
-        (it "should set the overflow flag when the 6th bit of the result is set"
-          (let [new-cpu ((op :bit) (imm-n (assoc cpu :a 0x40) 0x40) immediate)]
+        (it "should set the overflow flag when the 6th bit of the operand is set"
+          (let [new-cpu ((op :bit) (imm-n (assoc cpu :a 0) 0x40) immediate)]
             (should (overflow-flag? new-cpu))))
 
-        (it "should unset the overflow flag when the 6th bit of the result is unset"
+        (it "should unset the overflow flag when the 6th bit of the operand is unset"
           (let [new-cpu ((op :bit) (set-flag cpu overflow-flag true) immediate)]
             (should-not (overflow-flag? new-cpu)))))
 

@@ -226,11 +226,11 @@
             0x2c absolute]
   (let [[operand after-io] (io-> cpu (mode-read address-mode))
         result (unsigned-byte (bit-and (:a after-io) operand))
-        overflowed? (== 0x40 (bit-and result 0x40))]
+        overflowed? (= 0x40 (bit-and operand 0x40))]
     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag overflow-flag overflowed?)
-      (set-flag negative-flag (negative? result))
+      (set-flag negative-flag (negative? operand))
       (advance-pc address-mode))))
 
 ;; Load & store operations
