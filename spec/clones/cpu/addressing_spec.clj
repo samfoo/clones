@@ -107,6 +107,12 @@
         (should= 0x200 (do-mode indirect new-cpu)))))
 
   (describe "absolute-y"
+    (it "should wrap if the address would be greater than 2 bytes"
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xff 0)
+                              (io-write 0xff 1))]
+        (should= 0xf (do-mode absolute-y (assoc new-cpu :y 0x10)))))
+
     (it "should use the absolute address and add the value of Y"
       (let [[_ new-cpu] (io-> cpu
                               (io-write 0xef 0)
@@ -114,6 +120,12 @@
         (should= 0xbeff (do-mode absolute-y (assoc new-cpu :y 0x10))))))
 
   (describe "absolute-x"
+    (it "should wrap if the address would be greater than 2 bytes"
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0xff 0)
+                              (io-write 0xff 1))]
+        (should= 0xf (do-mode absolute-x (assoc new-cpu :x 0x10)))))
+
     (it "should use the absolute address and add the value of X"
       (let [[_ new-cpu] (io-> cpu
                               (io-write 0xef 0)

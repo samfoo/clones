@@ -39,12 +39,12 @@
 (defn absolute-x []
   (with-io-> [cpu (fetch-state)
               abs-addr (absolute)]
-             (+ (:x cpu) abs-addr)))
+             (unsigned-word (+ (:x cpu) abs-addr))))
 
 (defn absolute-y []
   (with-io-> [cpu (fetch-state)
               abs-addr (absolute)]
-             (+ (:y cpu) abs-addr)))
+             (unsigned-word (+ (:y cpu) abs-addr))))
 
 (defn- indirect-high-addr [abs-addr]
   (if (= 0xff (bit-and 0xff abs-addr))
