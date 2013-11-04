@@ -48,7 +48,7 @@
                         (unsigned-byte location)
                         value)
     zero-page-y (format "$%02X,Y @ %02X = %02X"
-                        (op-code-arg cpu)
+                        arg
                         (unsigned-byte location)
                         value)
     indirect (let [abs (io-debug-> (inc-pc cpu) (absolute))]

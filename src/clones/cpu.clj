@@ -258,7 +258,7 @@
             0xa6 zero-page
             0xb6 zero-page-y
             0xae absolute
-            0xbe absolute-x]
+            0xbe absolute-y]
   (let [[operand after-io] (io-> cpu (mode-read address-mode))]
     (load-op after-io address-mode operand :x)))
 
@@ -482,7 +482,7 @@
             0x06 zero-page
             0x16 zero-page-x
             0x0e absolute
-            0x1d absolute-x]
+            0x1e absolute-x]
   (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
                                                        (unsigned-byte
@@ -523,7 +523,7 @@
             0x26 zero-page
             0x36 zero-page-x
             0x2e absolute
-            0x3d absolute-x]
+            0x3e absolute-x]
   (let [with-carry? (carry-flag? cpu)
         [[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
