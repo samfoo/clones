@@ -385,7 +385,7 @@
 (defn stack-pull-pc [cpu]
   (let [top (stack-top cpu)
         [v after-pull] (io-> cpu
-                             (io-read-word (+ 1 (stack-top cpu))))]
+                             (io-read-word (+ 1 top)))]
     (merge after-pull {:pc v :sp (stack-next (stack-next top))})))
 
 (defn stack-pull-flags [cpu]
@@ -414,9 +414,9 @@
     (assoc after-io :pc where)))
 
 (defop jsr [0x20 absolute]
-  (let [pc (dec (:pc cpu))
-        high (high-byte pc)
-        low  (low-byte pc)
+  (let [return-pc (dec (:pc (advance-pc cpu address-mode)))
+        high (high-byte return-pc)
+        low  (low-byte return-pc)
         [where after-io] (io-> cpu
                                (address-mode))]
     (-> after-io

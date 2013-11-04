@@ -59,7 +59,7 @@
 
     (defn check-branching [desc f should-branch should-not-branch]
       (it desc
-        (should= 0 (:pc (f should-not-branch relative)))
+        (should= 1 (:pc (f should-not-branch relative)))
         (let [[_ should-branch] (io-> should-branch
                                       (io-write 0x50 0))]
           (should= 0x51 (:pc (f should-branch relative))))))
@@ -316,10 +316,10 @@
                 new-cpu ((op :jsr) with-jsr-addr absolute)]
             (should= 0xbeef (:pc new-cpu))))
 
-        (it "should push the current program counter (minus 1) to the stack"
+        (it "should push the return point of the function call (the next instruction after the jump) to the stack"
           (let [cpu (io-mount cpu 0x2000 0xffff {})
                 new-cpu ((op :jsr) (assoc cpu :pc 0xffdd) absolute)]
-            (should= 0xdc (peek-stack-n new-cpu 0))
+            (should= 0xde (peek-stack-n new-cpu 0))
             (should= 0xff (peek-stack-n new-cpu 1)))))
 
       (describe "jmp"
