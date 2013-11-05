@@ -9,6 +9,7 @@
   (let [rom (read-rom rom-file)
         cpu (make-cpu)
         cpu-with-rom (-> cpu
+                       (io-mount 0x2000 0x3fff {})
                        (io-mount 0x8000 0xbfff (:prg-data rom))
                        (io-mount 0xc000 0xffff (:prg-data rom)))
         cpu-ready (assoc cpu-with-rom :pc 0xc000)]
@@ -17,7 +18,8 @@
 (defn -main [& args]
   (loop [machine (init-nes (first args))
          times 0]
-    (if (< times 20)
+    ;; Obviously just for testing at the moment.
+    (if (< times 6000)
       (do
         (println (debug-step machine))
         (recur (step machine)
