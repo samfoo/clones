@@ -88,7 +88,11 @@
             (:pc cpu)
             op-code
             (debug-ops-argument cpu address-mode)
-            (clojure.string/upper-case name)
-            (debug-address-mode cpu address-mode name)
+            (if (nil? name)
+              "???"
+              (clojure.string/upper-case name))
+            (if (nil? name)
+              ""
+              (debug-address-mode cpu address-mode name))
             (debug-cpu-state cpu))))
 

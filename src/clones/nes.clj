@@ -15,14 +15,3 @@
         cpu-ready (assoc cpu-with-rom :pc 0xc000)]
     cpu-ready))
 
-(defn -main [& args]
-  (loop [machine (init-nes (first args))
-         times 0]
-    ;; Obviously just for testing at the moment.
-    (if (< times 6000)
-      (do
-        (println (debug-step machine))
-        (recur (step machine)
-               (inc times)))
-      (println "done"))))
-
