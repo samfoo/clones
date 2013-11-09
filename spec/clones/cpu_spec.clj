@@ -67,6 +67,176 @@
     (defn imm-n [cpu n]
       (second (io-> cpu (io-write n 0))))
 
+    (describe "unofficial operations"
+      ;; Note that these are not tested as exhaustively as the official opcodes
+      ;; Particularly the flag settings aren't unit tested. The nestest rom
+      ;; does test the flags, and these should all pass that
+
+      (describe "*rra"
+        (check-pc-increments cpu (op :*rra) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (it "should add the result to the accumulator"
+          (let [new-cpu ((op :*rra) (assoc (imm-n cpu 0x4) :a 1) immediate)]
+            (should= 0x3 (:a new-cpu))))
+
+        (it "should rotate the value at the address mode right 1"
+          (let [new-cpu ((op :*rra) cpu-with-carry immediate)]
+            (should= 0x80 (first (io-> new-cpu (io-read 0)))))
+
+          (let [new-cpu ((op :*rra) (imm-n cpu 0x80) immediate)]
+            (should= 0x40 (first (io-> new-cpu (io-read 0)))))))
+
+      (describe "*sre"
+        (check-pc-increments cpu (op :*sre) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (it "should xor the result with the accumulator"
+          (let [new-cpu ((op :*sre) (assoc (imm-n cpu 0x4) :a 0xff) immediate)]
+            (should= 0xfd (:a new-cpu))))
+
+        (it "should shift the value at the address mode right 1"
+          (let [new-cpu ((op :*sre) (imm-n cpu 2) immediate)]
+            (should= 1 (:a new-cpu)))))
+
+      (describe "*rla"
+        (check-pc-increments cpu (op :*rla) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (it "should and the result with the accumulator"
+          (let [new-cpu ((op :*rla) (assoc (imm-n cpu 0x4) :a 0xff) immediate)]
+            (should= 0x8 (:a new-cpu))))
+
+        (it "should rotate the value at the address mode left 1"
+          (let [new-cpu ((op :*rla) (assoc cpu-with-carry :a 1) accumulator)]
+            (should= 3 (:a new-cpu)))
+
+          (let [new-cpu ((op :*rla) (assoc cpu :a 1) accumulator)]
+            (should= 2 (:a new-cpu)))))
+
+      (describe "*slo"
+        (check-pc-increments cpu (op :*slo) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (it "should or the result with the accumulator"
+          (let [new-cpu ((op :*slo) (imm-n cpu 0xbe) immediate)]
+            (should= 0x7c (:a new-cpu))))
+
+        (it "should shift the value at the address mode left 1"
+          (let [new-cpu ((op :*slo) (assoc cpu :a 1) accumulator)]
+            (should= 2 (:a new-cpu)))))
+
+      (describe "*isb"
+        (check-pc-increments cpu (op :*isb) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (it "should subtract the value at the address mode plus 1 from the accumulator"
+          (let [new-cpu ((op :*isb) cpu-with-carry immediate)]
+            (should= 0xff (:a new-cpu))))
+
+        (it "should increment the value of the memory location by 1"
+          (let [new-cpu ((op :*isb) cpu immediate)]
+            (should= 1 (first (io-> new-cpu (io-read 0)))))))
+
+      (describe "*dcp"
+        (check-pc-increments cpu (op :*dcp) [1 :zero-page
+                                             1 :zero-page-x
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-x
+                                             2 :absolute-y])
+
+        (check-zero-flag-sets #((op :*dcp) (imm-n %1 1) immediate))
+        (check-zero-flag-unsets #((op :*dcp) % immediate))
+
+        (check-negative-flag-sets (fn [c]
+                                    ((op :*dcp) (assoc c :a 0x81)
+                                        immediate)))
+        (check-negative-flag-unsets #((op :*dcp) %1 immediate))
+
+        (it "should decrement the value of the memory location by 1"
+          (let [new-cpu ((op :*dcp) cpu immediate)]
+            (should= 0xff (first (io-> new-cpu (io-read 0))))))
+
+        (it "should unset the carry flag if the accumulator is less than the operand minus 1"
+          (let [with-gt-v (imm-n cpu-with-carry 2)
+                new-cpu ((op :*dcp) with-gt-v immediate)]
+            (should-not (carry-flag? new-cpu))))
+
+        (it "should set the carry flag if the accumulator is greater than or equal to the operand minus 1"
+          (let [with-val (second (io-> (assoc cpu :a 0x40)
+                                       (io-write 1 0)))
+                new-cpu ((op :*dcp) with-val immediate)]
+            (should (carry-flag? new-cpu)))))
+
+
+      (describe "*sax"
+        (check-pc-increments cpu (op :*sax) [1 :zero-page
+                                             1 :zero-page-y
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute])
+
+        (it "should write A & X to the address mode"
+          (let [new-cpu ((op :*sax) (merge cpu {:a 0xff :x 0x40}) zero-page)]
+            (should= 0x40 (first (io-> new-cpu (io-read 0)))))))
+
+      (describe "*lax"
+        (check-pc-increments cpu (op :*lax) [1 :zero-page
+                                             1 :zero-page-y
+                                             1 :indexed-indirect
+                                             1 :indirect-indexed
+                                             2 :absolute
+                                             2 :absolute-y])
+
+        (check-zero-flag-sets #((op :*lax) %1 accumulator))
+        (check-zero-flag-unsets #((op :*lax) (assoc %1 :a 1) accumulator))
+
+        (check-negative-flag-sets #((op :*lax) (assoc %1 :a 0x80) accumulator))
+        (check-negative-flag-unsets #((op :*lax) (assoc %1 :a 1) accumulator))
+
+        (it "should load the accumulator with the value at the address mode"
+          (let [cpu-with-mem (second (io-> cpu
+                                           (io-write 0xff 0)))
+                new-cpu ((op :*lax) cpu-with-mem immediate)]
+            (should= 0xff (:a new-cpu))))
+
+        (it "should load the x register with the value at the address mode"
+          (let [cpu-with-mem (second (io-> cpu
+                                           (io-write 0xff 0)))
+                new-cpu ((op :*lax) cpu-with-mem immediate)]
+            (should= 0xff (:x new-cpu)))))
+
+      (describe "*nop"
+        (check-pc-increments cpu (op :asl) [0 :accumulator
+                                            1 :zero-page])))
+
     (describe "store operations"
       (describe "sty"
         (check-pc-increments cpu (op :sty) [1 :zero-page
@@ -651,7 +821,7 @@
           (should (carry-flag? new-cpu))))
 
       (it "should unset the carry flag when the result is not an unsigned underflow"
-        (let [cpu-with-carry (set-flag (assoc cpu :a 1) carry-flag true)
+        (let [cpu-with-carry (assoc cpu :a 0)
               new-cpu ((op :sbc) cpu-with-carry immediate)]
           (should-not (carry-flag? new-cpu))))
 

@@ -76,15 +76,19 @@
 
 ;; Comparison operations
 (defn compare-op
-  [cpu mode reg]
-  (let [[operand after-io] (io-> cpu (mode-read mode))
-        result (unsigned-byte (- (reg after-io) operand))
-        register (unsigned-byte (reg after-io))
+  [cpu reg operand]
+  (let [result (unsigned-byte (- (reg cpu) operand))
         value (unsigned-byte operand)]
+  (-> cpu
+    (set-flag carry-flag (>= (reg cpu) value))
+    (set-flag negative-flag (negative? result))
+    (set-flag zero-flag (zero? result)))))
+
+(defn compare-op-with-io
+  [cpu mode reg]
+  (let [[operand after-io] (io-> cpu (mode-read mode))]
     (-> after-io
-      (set-flag carry-flag (>= register value))
-      (set-flag negative-flag (negative? result))
-      (set-flag zero-flag (zero? result))
+      (compare-op reg operand)
       (advance-pc mode))))
 
 (defop cmp [0xc9 immediate
@@ -95,17 +99,17 @@
             0xd9 absolute-y
             0xc1 indexed-indirect
             0xd1 indirect-indexed]
-  (compare-op cpu address-mode :a))
+  (compare-op-with-io cpu address-mode :a))
 
 (defop cpx [0xe0 immediate
             0xe4 zero-page
             0xec absolute]
-  (compare-op cpu address-mode :x))
+  (compare-op-with-io cpu address-mode :x))
 
 (defop cpy [0xc0 immediate
             0xc4 zero-page
             0xcc absolute]
-  (compare-op cpu address-mode :y))
+  (compare-op-with-io cpu address-mode :y))
 
 ;; Arithmetic operations
 (defn subtract-overflowed?
@@ -135,6 +139,20 @@
         true
         false))))
 
+(defn add-op [cpu operand]
+  (let [signed-result (if (carry-flag? cpu)
+                        (+ (:a cpu) operand 1)
+                        (+ (:a cpu) operand))
+        result (unsigned-byte signed-result)
+        carried? (> signed-result 0xff)
+        overflowed? (add-overflowed? (:a cpu) operand result)]
+    (-> cpu
+      (set-flag carry-flag carried?)
+      (set-flag overflow-flag overflowed?)
+      (set-flag negative-flag (negative? result))
+      (set-flag zero-flag (zero? result))
+      (assoc :a result))))
+
 (defop adc [0x69 immediate
             0x65 zero-page
             0x75 zero-page-x
@@ -143,19 +161,24 @@
             0x79 absolute-y
             0x61 indexed-indirect
             0x71 indirect-indexed]
-  (let [[operand cpu] (io-> cpu (mode-read address-mode))
-        result (unsigned-byte (if (carry-flag? cpu)
-                 (+ (:a cpu) operand 1)
-                 (+ (:a cpu) operand)))
-        carried? (< result (:a cpu))
-        overflowed? (add-overflowed? (:a cpu) operand result)]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
+    (-> after-io
+      (add-op operand)
+      (advance-pc address-mode))))
+
+(defn subtract-op [cpu operand]
+  (let [signed-result (if (carry-flag? cpu)
+                        (- (:a cpu) operand)
+                        (- (:a cpu) operand 1))
+        result (unsigned-byte signed-result)
+        carried? (>= signed-result 0)
+        overflowed? (subtract-overflowed? (:a cpu) operand result)]
     (-> cpu
       (set-flag carry-flag carried?)
       (set-flag overflow-flag overflowed?)
       (set-flag negative-flag (negative? result))
       (set-flag zero-flag (zero? result))
-      (assoc :a result)
-      (advance-pc address-mode))))
+      (assoc :a result))))
 
 (defop sbc [0xe9 immediate
             0xe5 zero-page
@@ -165,18 +188,9 @@
             0xf9 absolute-y
             0xe1 indexed-indirect
             0xf1 indirect-indexed]
-  (let [[operand after-io] (io-> cpu (mode-read address-mode))
-        result (unsigned-byte (if (carry-flag? after-io)
-                 (- (:a after-io) operand)
-                 (- (:a after-io) operand 1)))
-        carried? (> (:a cpu) result)
-        overflowed? (subtract-overflowed? (:a after-io) operand result)]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))]
     (-> after-io
-      (set-flag carry-flag carried?)
-      (set-flag overflow-flag overflowed?)
-      (set-flag negative-flag (negative? result))
-      (set-flag zero-flag (zero? result))
-      (assoc :a result)
+      (subtract-op operand)
       (advance-pc address-mode))))
 
 ;; Logical operations
@@ -478,11 +492,7 @@
 
 ;; Shifts
 
-(defop asl [0x0a accumulator
-            0x06 zero-page
-            0x16 zero-page-x
-            0x0e absolute
-            0x1e absolute-x]
+(defn shift-mode-left [cpu address-mode]
   (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
                                                        (unsigned-byte
@@ -493,14 +503,18 @@
     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
-      (set-flag carry-flag carried?)
-      (advance-pc address-mode))))
+      (set-flag carry-flag carried?))))
 
-(defop lsr [0x4a accumulator
-            0x46 zero-page
-            0x56 zero-page-x
-            0x4e absolute
-            0x5e absolute-x]
+(defop asl [0x0a accumulator
+            0x06 zero-page
+            0x16 zero-page-x
+            0x0e absolute
+            0x1e absolute-x]
+    (-> cpu
+      (shift-mode-left address-mode)
+      (advance-pc address-mode)))
+
+(defn shift-mode-right [cpu address-mode]
   (let [[[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
                                                       (unsigned-byte
@@ -510,8 +524,16 @@
     (-> after-io
       (set-flag carry-flag carried?)
       (set-flag negative-flag false)
-      (set-flag zero-flag (zero? result))
-      (advance-pc address-mode))))
+      (set-flag zero-flag (zero? result)))))
+
+(defop lsr [0x4a accumulator
+            0x46 zero-page
+            0x56 zero-page-x
+            0x4e absolute
+            0x5e absolute-x]
+  (-> cpu
+    (shift-mode-right address-mode)
+    (advance-pc address-mode)))
 
 (defn rotate-l [v carry?]
   (let [shifted (unsigned-byte (bit-shift-left v 1))]
@@ -519,11 +541,7 @@
       (bit-or 1 shifted)
       shifted)))
 
-(defop rol [0x2a accumulator
-            0x26 zero-page
-            0x36 zero-page-x
-            0x2e absolute
-            0x3e absolute-x]
+(defn rotate-mode-left [cpu address-mode]
   (let [with-carry? (carry-flag? cpu)
         [[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
@@ -534,8 +552,16 @@
     (-> after-io
       (set-flag negative-flag negative?)
       (set-flag zero-flag (zero? result))
-      (set-flag carry-flag carried?)
-      (advance-pc address-mode))))
+      (set-flag carry-flag carried?))))
+
+(defop rol [0x2a accumulator
+            0x26 zero-page
+            0x36 zero-page-x
+            0x2e absolute
+            0x3e absolute-x]
+  (-> cpu
+    (rotate-mode-left address-mode)
+    (advance-pc address-mode)))
 
 (defn rotate-r [v carry?]
   (let [shifted (unsigned-byte (bit-shift-right v 1))]
@@ -543,11 +569,7 @@
       (bit-or 0x80 shifted)
       shifted)))
 
-(defop ror [0x6a accumulator
-            0x66 zero-page
-            0x76 zero-page-x
-            0x6e absolute
-            0x7e absolute-x]
+(defn rotate-mode-right [cpu address-mode]
   (let [with-carry? (carry-flag? cpu)
         [[orig result] after-io] ((with-io-> [before (mode-read address-mode)
                                               after (mode-write address-mode
@@ -558,5 +580,144 @@
     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
-      (set-flag carry-flag carried?)
+      (set-flag carry-flag carried?))))
+
+(defop ror [0x6a accumulator
+            0x66 zero-page
+            0x76 zero-page-x
+            0x6e absolute
+            0x7e absolute-x]
+  (-> cpu
+    (rotate-mode-right address-mode)
+    (advance-pc address-mode)))
+
+;; Unofficial operations
+(defop *nop [0x04 zero-page
+             0x44 zero-page
+             0x64 zero-page
+             0x0c absolute
+             0x14 zero-page-x
+             0x34 zero-page-x
+             0x54 zero-page-x
+             0x74 zero-page-x
+             0xd4 zero-page-x
+             0xf4 zero-page-x
+             0x1a implied
+             0x3a implied
+             0x5a implied
+             0x7a implied
+             0xda implied
+             0xfa implied
+             0x80 immediate
+             0x1c absolute-x
+             0x3c absolute-x
+             0x5c absolute-x
+             0x7c absolute-x
+             0xdc absolute-x
+             0xfc absolute-x]
+       (advance-pc cpu address-mode))
+
+(defop *lax [0xa3 indexed-indirect
+             0xa7 zero-page
+             0xaf absolute
+             0xb3 indirect-indexed
+             0xb7 zero-page-y
+             0xbf absolute-y]
+  (let [[v after-io] (io-> cpu (mode-read address-mode))]
+    (-> after-io
+      (set-flag zero-flag (zero? v))
+      (set-flag negative-flag (negative? v))
+      (assoc :x v)
+      (assoc :a v)
       (advance-pc address-mode))))
+
+(defop *sax [0x83 indexed-indirect
+             0x87 zero-page
+             0x8f absolute
+             0x97 zero-page-y]
+  (let [v (bit-and (:a cpu) (:x cpu))
+        [_ after-io] (io-> cpu
+                           (mode-write address-mode v))]
+    (advance-pc after-io address-mode)))
+
+(defop *sbc [0xeb immediate]
+  ((op :sbc) cpu address-mode))
+
+(defop *dcp [0xc3 indexed-indirect
+             0xd3 indirect-indexed
+             0xc7 zero-page
+             0xcf absolute
+             0xd7 zero-page-x
+             0xdb absolute-y
+             0xdf absolute-x]
+  (let [[operand after-io] ((with-io-> [orig (mode-read address-mode)
+                                        decd (mode-write
+                                               address-mode
+                                               (unsigned-byte (dec orig)))]
+                                       decd) cpu)]
+    (-> after-io
+      (compare-op :a operand)
+      (advance-pc address-mode))))
+
+(defop *isb [0xe3 indexed-indirect
+             0xe7 zero-page
+             0xef absolute
+             0xf3 indirect-indexed
+             0xf7 zero-page-x
+             0xfb absolute-y
+             0xff absolute-x]
+  (let [[incd after-io] ((with-io-> [orig (mode-read address-mode)
+                                     incd (mode-write
+                                            address-mode
+                                            (unsigned-byte (inc orig)))]
+                                    incd) cpu)]
+    (-> after-io
+      (subtract-op incd)
+      (advance-pc address-mode))))
+
+(defop *slo [0x03 indexed-indirect
+             0x07 zero-page
+             0x0f absolute
+             0x13 indirect-indexed
+             0x17 zero-page-x
+             0x1b absolute-y
+             0x1f absolute-x]
+  (let [after-shift (shift-mode-left cpu address-mode)
+        [shifted after-read] (io-> after-shift (mode-read address-mode))]
+    (logical-op after-read address-mode shifted bit-or)))
+
+(defop *rla [0x23 indexed-indirect
+             0x27 zero-page
+             0x2f absolute
+             0x33 indirect-indexed
+             0x37 zero-page-x
+             0x3b absolute-y
+             0x3f absolute-x]
+  (let [after-rotate (rotate-mode-left cpu address-mode)
+        [rotated after-read] (io-> after-rotate (mode-read address-mode))]
+    (logical-op after-read address-mode rotated bit-and)))
+
+(defop *sre [0x43 indexed-indirect
+             0x47 zero-page
+             0x4f absolute
+             0x53 indirect-indexed
+             0x57 zero-page-x
+             0x5b absolute-y
+             0x5f absolute-x]
+  (let [after-shift (shift-mode-right cpu address-mode)
+        [shifted after-read] (io-> after-shift (mode-read address-mode))]
+    (logical-op after-read address-mode shifted bit-xor)))
+
+(defop *rra [0x63 indexed-indirect
+             0x67 zero-page
+             0x6f absolute
+             0x73 indirect-indexed
+             0x77 zero-page-x
+             0x7b absolute-y
+             0x7f absolute-x]
+  (let [after-rotate (rotate-mode-right cpu address-mode)
+        [rotated after-read] (io-> after-rotate (mode-read address-mode))]
+    (-> after-read
+      (add-op rotated)
+      (advance-pc address-mode))))
+
