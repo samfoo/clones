@@ -47,6 +47,9 @@
 (defn step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (get op-codes op-code)]
+    (if (nil? op)
+      (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
+      nil)
     (execute (inc-pc after-read) op)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
@@ -380,34 +383,35 @@
 (defop dey [0x88 implied] (dec-reg-op cpu :y))
 
 ;; Stack pushing and popping
-(defn stack-top [cpu] (+ 0x100 (:sp cpu)))
-
-(defn stack-next [top]
-  (unsigned-byte (+ 1 top)))
-
 (defn stack-push [cpu v]
-  (let [top (stack-top cpu)
+  (let [pointer (+ 0x100 (:sp cpu))
         [_ after-push] (io-> cpu
-                             (io-write v top))]
-    (assoc after-push :sp (unsigned-byte (dec top)))))
+                             (io-write v pointer))
+        new-sp (unsigned-byte (dec (:sp cpu)))]
+    (assoc after-push :sp new-sp)))
 
 (defop pha [0x48 implied] (stack-push cpu (:a cpu)))
 (defop php [0x08 implied] (stack-push cpu (bit-or 0x10 (:p cpu))))
 
-(defn stack-pull [cpu reg]
-  (let [top (stack-top cpu)
-        [v after-pull] (io-> cpu
-                             (io-read (+ 1 (stack-top cpu))))]
-    (merge after-pull {reg v :sp (stack-next top)})))
+(defn stack-pull [cpu]
+  (let [top (unsigned-byte (inc (:sp cpu)))
+        pointer (+ 0x100 top)
+        [v after-pull] (io-> cpu (io-read pointer))
+        new-sp (unsigned-byte (inc (:sp cpu)))]
+    [v (assoc after-pull :sp new-sp)]))
+
+(defn stack-pull-reg [cpu reg]
+  (let [[v after-pull] (stack-pull cpu)]
+    (assoc after-pull reg v)))
 
 (defn stack-pull-pc [cpu]
-  (let [top (stack-top cpu)
-        [v after-pull] (io-> cpu
-                             (io-read-word (+ 1 top)))]
-    (merge after-pull {:pc v :sp (stack-next (stack-next top))})))
+  (let [[low after-low] (stack-pull cpu)
+        [high after-pulls] (stack-pull after-low)
+        new-pc (bit-or (bit-shift-left high 8) low)]
+    (assoc after-pulls :pc new-pc)))
 
 (defn stack-pull-flags [cpu]
-  (let [pulled (stack-pull cpu :p)]
+  (let [pulled (stack-pull-reg cpu :p)]
     (-> pulled
       (set-flag break-flag false)
       (set-flag unused-flag true))))
@@ -416,7 +420,7 @@
   (io-> cpu (io-read-word 0xfffe)))
 
 (defop pla [0x68 implied]
-  (let [pulled (stack-pull cpu :a)
+  (let [pulled (stack-pull-reg cpu :a)
         result (:a pulled)]
     (-> pulled
       (set-flag zero-flag (zero? result))
@@ -480,7 +484,7 @@
 (defop nop [0xea implied] cpu)
 
 (defop brk [0x00 implied]
-  (let [pc (inc (:pc cpu))
+  (let [pc (+ 1 (:pc cpu))
         [interrupt after-read] (interrupt-vector cpu)
         high (high-byte pc)
         low  (low-byte pc)]
@@ -488,6 +492,7 @@
       (stack-push high)
       (stack-push low)
       (stack-push (bit-or 0x10 (:p after-read)))
+      (set-flag interrupt-flag true)
       (assoc :pc interrupt))))
 
 ;; Shifts
@@ -609,6 +614,10 @@
              0xda implied
              0xfa implied
              0x80 immediate
+             0x82 immediate
+             0x89 immediate
+             0xc2 immediate
+             0xe2 immediate
              0x1c absolute-x
              0x3c absolute-x
              0x5c absolute-x
@@ -720,4 +729,3 @@
     (-> after-read
       (add-op rotated)
       (advance-pc address-mode))))
-

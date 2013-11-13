@@ -521,6 +521,20 @@
             (should= 0x1000 (:pc new-cpu))))))
 
     (describe "stack operations"
+      (describe "stack-push"
+        (it "should wrap the stack pointer to 0x1ff when it's 0"
+          (let [new-cpu (stack-push (assoc cpu :sp 0) 0)]
+            (should= 0xff (:sp new-cpu)))))
+
+      (describe "stack-pull"
+        (it "should pull from 0x0100 when the stack pointer is 0xff"
+          (let [[_ new-cpu] (io-> cpu
+                                  (io-write 0xdd 0x100))
+                cpu-with-sp-ff (assoc new-cpu :sp 0xff)
+                [result after-pull] (stack-pull cpu-with-sp-ff)]
+            (should= 0xdd result)
+            (should= 0 (:sp after-pull)))))
+
       (describe "plp"
         (it "should pull the 5th bit as 1, no matter what"
           (let [new-cpu ((op :plp) (with-stack-top cpu 0x00) implied)]
@@ -559,11 +573,6 @@
             (should= (bit-or carry-flag break-flag) stack-top))))
 
       (describe "pha"
-        (it "should wrap the stack pointer to 0xff if it is 0x00"
-          (let [cpu-with-0-sp (assoc cpu :sp 0x00)
-                new-cpu ((op :pha) cpu-with-0-sp implied)]
-            (should= 0xff (:sp new-cpu))))
-
         (it "should decrement the stack pointer"
           (let [new-cpu ((op :pha) (assoc cpu :a 0xbe) implied)
                 new-sp (:sp new-cpu)]
