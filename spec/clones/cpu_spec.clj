@@ -72,6 +72,24 @@
       ;; Particularly the flag settings aren't unit tested. The nestest rom
       ;; does test the flags, and these should all pass that
 
+      (describe "*arr"
+        (check-pc-increments cpu (op :*arr) [1 :immediate])
+
+        (it "should set the accumulator to (A & immediate) and then rotate the
+            accumulator right one"
+          (let [new-cpu ((op :*arr) (imm-n (assoc cpu-with-carry :a 0xaa) 0x55) immediate)]
+            (should= 0x80 (:a new-cpu)))))
+
+      (describe "*axs"
+        (check-pc-increments cpu (op :*axs) [1 :immediate])
+
+        (it "should set X to (A & X) - immediate"
+          (let [new-cpu ((op :*axs) (imm-n (merge cpu {:a 0xff
+                                                       :x 0x40})
+                                           2) immediate)]
+            (should= 0x3e (:x new-cpu)))))
+
+
       (describe "*alr"
         (check-pc-increments cpu (op :*alr) [1 :immediate])
 

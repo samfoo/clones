@@ -744,7 +744,35 @@
         after-and (logical-op after-io address-mode operand bit-and)]
     (shift-mode-right after-and accumulator)))
 
-(defop *arr [0x6b immediate] (advance-pc cpu address-mode))
-(defop *axs [0xcb immediate] (advance-pc cpu address-mode))
+(defop *axs [0xcb immediate]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        anded (bit-and (:a after-io) (:x after-io))
+        subbed (- anded operand)
+        result (unsigned-byte subbed)
+        carried? (>= anded operand)]
+    (-> after-io
+      (assoc :x result)
+      (set-flag carry-flag carried?)
+      (set-flag negative-flag (negative? result))
+      (set-flag zero-flag (zero? result))
+      (advance-pc address-mode))))
+
+(defop *arr [0x6b immediate]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        anded (bit-and (:a after-io) operand)
+        rotated (rotate-r anded (carry-flag? after-io))
+        carried? (bit-set? rotated 0x40)
+        overflowed? (not= 0
+                          (bit-xor
+                            (bit-and rotated 0x40)
+                            (bit-shift-left (bit-and rotated 0x20) 1)))]
+    (-> after-io
+      (assoc :a rotated)
+      (set-flag negative-flag (negative? rotated))
+      (set-flag zero-flag (zero? rotated))
+      (set-flag carry-flag carried?)
+      (set-flag overflow-flag overflowed?)
+      (advance-pc address-mode))))
+
 (defop *shy [0x9c absolute-x] (advance-pc cpu address-mode))
 (defop *shx [0x9e absolute-y] (advance-pc cpu address-mode))
