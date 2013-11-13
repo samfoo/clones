@@ -49,17 +49,23 @@
     (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
     nil))
 
+(defn- mount-write-rel [m v addr]
+  (let [device (:device m)
+        relative-addr (- addr (:start m))
+        [_ device-after-write] (device-write device v relative-addr)]
+    (assoc m :device device-after-write)))
+
+(defn- mounts-write-abs [mounts v addr]
+  (map
+    (fn [m]
+      (if (mount-contains? m addr)
+        (mount-write-rel m v addr)
+        m))
+    mounts))
+
 (defn mounts-write [mounts v addr]
   (error-if-invalid-addr mounts addr)
-  (let [mounts-after-write (map
-                             (fn [m]
-                               (if (mount-contains? m addr)
-                                 (let [device (:device m)
-                                       relative-addr (- addr (:start m))
-                                       [_ device-after-write] (device-write device v relative-addr)]
-                                   (assoc m :device device-after-write))
-                                 m))
-                             mounts)]
+  (let [mounts-after-write (mounts-write-abs mounts v addr)]
     [v mounts-after-write]))
 
 (defn mounts-read [mounts addr]

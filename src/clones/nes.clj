@@ -20,6 +20,7 @@
                                                 0x06 0xff
                                                 0x07 0xff
                                                 0x15 0xff})
+                       (io-mount 0x6000 0x7fff {})
                        (io-mount 0x8000 0xffff prg-device))
         [reset-vector _] (io-> cpu-with-rom (io-read-word 0xfffc))
         cpu-ready (assoc cpu-with-rom :pc reset-vector)]

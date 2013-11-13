@@ -9,6 +9,8 @@
   :profiles {:dev {:dependencies [[speclj "2.5.0"]]}
              :nestest {:main clones.nes.nestest
                        :uberjar-name "nestest.jar"}
+             :blargg {:main clones.nes.blargg
+                      :uberjar-name "blargg-tester.jar"}
              :emu {:main clones.nes
                    :uberjar-name "clones.jar"}}
   :plugins [[speclj "2.7.0"]]
