@@ -15,7 +15,12 @@
 
 (deftype MapperPrgDevice [mapper]
   Device
-  (device-read [this addr] (mapper-read-prg this addr))
-  (device-write [this v addr] (mapper-write-prg this v addr)))
+  (device-read [this addr]
+    (let [[v after-read] (mapper-read-prg mapper addr)]
+      [v (MapperPrgDevice. after-read)]))
+
+  (device-write [this v addr]
+    (let [[_ after-write] (mapper-write-prg mapper v addr)]
+      [v (MapperPrgDevice. after-write)])))
 
 (defn mapper-prg-device [mapper] (MapperPrgDevice. mapper))
