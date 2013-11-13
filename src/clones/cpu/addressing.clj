@@ -27,9 +27,10 @@
 (defn relative []
   (with-io-> [cpu (fetch-state)
               offset (io-read (:pc cpu))]
-             (if (< offset 0x80)
-               (+ 1 (:pc cpu) offset)
-               (+ 1 (- (:pc cpu) 0x100) offset))))
+             (unsigned-word
+               (if (< offset 0x80)
+                 (+ 1 (:pc cpu) offset)
+                 (+ 1 (- (:pc cpu) 0x100) offset)))))
 
 (defn absolute []
   (with-io-> [cpu (fetch-state)

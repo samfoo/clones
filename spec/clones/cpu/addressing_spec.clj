@@ -140,6 +140,18 @@
         (should= 0xbeef (do-mode absolute new-cpu)))))
 
   (describe "relative"
+    (it "should wrap if the result would be < 0"
+      (let [[_ new-cpu] (io-> cpu
+                              (io-write 0x80 (:pc cpu)))]
+        (should= 0xff81 (do-mode relative new-cpu))))
+
+    (it "should wrap if the result would be > 0xffff"
+      (let [cpu-with-pc (io-mount (assoc cpu :pc 0xffff)
+                                  0x2000 0xffff {})
+            [_ new-cpu] (io-> cpu-with-pc
+                              (io-write 0x79 (:pc cpu-with-pc)))]
+        (should= 0x79 (do-mode relative new-cpu))))
+
     (it "should be 'read(PC) + (PC - 0x100) + 1' if read(PC) is >= 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)
             [_ new-cpu] (io-> cpu-with-pc
