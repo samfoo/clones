@@ -1,6 +1,7 @@
 (ns clones.nes.rom
-  (:use [clones.byte :refer :all]
-        [clojure.java.io :only [file input-stream]]))
+  (:use [clones.byte             :refer :all]
+        [clones.nes.mappers.nrom :refer :all]
+        [clojure.java.io         :only [file input-stream]]))
 
 (def mapper-names {
     0   "NROM",
@@ -54,6 +55,17 @@
     232 "Camerica/Codemasters Quattro",
 })
 
+(def mappers {0 nrom})
+
+(defn make-mapper [rom]
+  (let [mapper-id (:mapper rom)
+        mapper-fn (get mappers mapper-id)]
+    (if (nil? mapper-fn)
+      (throw (ex-info "Unsupported mapper"
+                      {:id mapper-id
+                       :name (get mapper-names mapper-id "unknown")}))
+      (mapper-fn rom))))
+
 (defn- bit-mask [n]
   (if (> n 0)
     (bit-or
@@ -87,10 +99,15 @@
         vs (map second (partition 2 desc))]
     (zipmap ks (bit-seq b vs))))
 
+(def prg-bank-size 16384)
+(def chr-bank-size 8192)
+
 (defn parse-ines-header [data]
   (let [sig (take 4 data)
-        prg-rom-size (* 16384 (nth data 4))
-        chr-rom-size (* 8192 (nth data 5))
+        prg-rom-size (* prg-bank-size (nth data 4))
+        prg-banks (nth data 4)
+        chr-rom-size (* chr-bank-size (nth data 5))
+        chr-banks (nth data 5)
         flags-6 (bit-map (nth data 6)
                          :lower-mapper-nibble 4
                          :mirroring-upper 1
@@ -115,7 +132,9 @@
     (if (not= sig [78 69 83 26])
       (throw (Error. "Invalid iNES file"))
       (merge {:prg-rom-size prg-rom-size
+              :prg-banks prg-banks
               :chr-rom-size chr-rom-size
+              :chr-banks chr-banks
               :mapper mapper
               :mapper-name (get mapper-names mapper)
               :mirroring mirroring

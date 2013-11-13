@@ -11,8 +11,8 @@
 
 (extend-protocol Device
   clojure.lang.Associative
-  (device-read [device addr] [(get device addr 0) device])
-  (device-write [device v addr] [v (assoc device addr v)]))
+  (device-read [this addr] [(get this addr 0) this])
+  (device-write [this v addr] [v (assoc this addr v)]))
 
 (defn mounts-overlap? [m1 m2]
   (and

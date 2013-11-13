@@ -21,7 +21,13 @@
 
 (def with-nes-2 [78 69 83 26 1 1 0 8 0 0 0 0 0 0 0 0 0])
 
-(describe "An iNES rom parser"
+(describe "Making a mapper from a ROM"
+  (describe "make-mapper"
+    (it "should throw and exception if the mapper is unsupported"
+      (should-throw clojure.lang.ExceptionInfo "Unsupported mapper"
+        (make-mapper {:mapper -1})))))
+
+(describe "An iNES ROM parser"
   (describe "parse-ines-header"
     (it "should read that it is not NES-2 format if bits 3 & 2 of the 7th byte aren't 10"
       (should-not (:nes-2? (parse-ines-header valid-header))))
