@@ -40,16 +40,16 @@
     (map #(str "                " %) context)))
 
 (defn -main [& args]
-  (doseq [
-          [expected actual line] (map vector
-                                      (read-nintendulator-log "assets/nestest.log")
-                                      (lazy-debug (init-nes "assets/nestest.nes"))
-                                      (range))]
-    (if (not= expected actual)
-      (let [[e a] (pretty-diff expected actual)]
-        (println (clojure.string/join "\n" (get-context line)))
-        (println (format "%-5d expected: %s" line e))
-        (println (format "%-5d actual  : %s" line a))
-        (System/exit 1))
-      nil))
-  (println "All systems nominal"))
+  (let [machine (init-nes "assets/nestest.nes")]
+    (doseq [[expected actual line] (map vector
+                                        (read-nintendulator-log "assets/nestest.log")
+                                        (lazy-debug (assoc machine :pc 0xc000))
+                                        (range))]
+      (if (not= expected actual)
+        (let [[e a] (pretty-diff expected actual)]
+          (println (clojure.string/join "\n" (get-context line)))
+          (println (format "%-5d expected: %s" line e))
+          (println (format "%-5d actual  : %s" line a))
+          (System/exit 1))
+        nil))
+    (println "All systems nominal")))
