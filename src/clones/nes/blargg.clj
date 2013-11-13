@@ -22,8 +22,7 @@
       (str c (read-null-term-str-from nes (inc addr))))))
 
 (defn- current-result-text [nes]
-  (let [results (read-null-term-str-from nes 0x6004)]
-    (clojure.string/replace results "\n" " ")))
+  (read-null-term-str-from nes 0x6004))
 
 (defn- await-test-finish [nes i]
   (let [status (io-debug-> nes (io-read 0x6000))]

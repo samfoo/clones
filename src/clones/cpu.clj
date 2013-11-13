@@ -626,7 +626,8 @@
              0xfc absolute-x]
        (advance-pc cpu address-mode))
 
-(defop *lax [0xa3 indexed-indirect
+(defop *lax [0xab immediate
+             0xa3 indexed-indirect
              0xa7 zero-page
              0xaf absolute
              0xb3 indirect-indexed
@@ -729,3 +730,21 @@
     (-> after-read
       (add-op rotated)
       (advance-pc address-mode))))
+
+(defop *anc [0x0b immediate
+             0x2b immediate]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        after-and (logical-op after-io address-mode operand bit-and)
+        carried? (bit-set? (:a after-and) 0x80)]
+    (-> after-and
+      (set-flag carry-flag carried?))))
+
+(defop *alr [0x4b immediate]
+  (let [[operand after-io] (io-> cpu (mode-read address-mode))
+        after-and (logical-op after-io address-mode operand bit-and)]
+    (shift-mode-right after-and accumulator)))
+
+(defop *arr [0x6b immediate] (advance-pc cpu address-mode))
+(defop *axs [0xcb immediate] (advance-pc cpu address-mode))
+(defop *shy [0x9c absolute-x] (advance-pc cpu address-mode))
+(defop *shx [0x9e absolute-y] (advance-pc cpu address-mode))

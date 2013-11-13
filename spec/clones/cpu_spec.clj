@@ -72,6 +72,24 @@
       ;; Particularly the flag settings aren't unit tested. The nestest rom
       ;; does test the flags, and these should all pass that
 
+      (describe "*alr"
+        (check-pc-increments cpu (op :*alr) [1 :immediate])
+
+        (it "should and the argument with the accumulator and shift the result right"
+          (let [new-cpu ((op :*alr) (imm-n (assoc cpu :a 0xff) 0xa5) immediate)]
+            (should= 0x52 (:a new-cpu)))))
+
+      (describe "*anc"
+        (check-pc-increments cpu (op :*anc) [1 :immediate])
+
+        (it "should set the carry flag if the result has bit 7 set"
+          (let [new-cpu ((op :*anc) (imm-n (assoc cpu :a 0xff) 0xa5) immediate)]
+            (should (carry-flag? new-cpu))))
+
+        (it "should and the argument with the accumulator"
+          (let [new-cpu ((op :*anc) (imm-n (assoc cpu :a 0xff) 0xa5) immediate)]
+            (should= 0xa5 (:a new-cpu)))))
+
       (describe "*rra"
         (check-pc-increments cpu (op :*rra) [1 :zero-page
                                              1 :zero-page-x
