@@ -416,7 +416,7 @@
             (should= 2 (:a cpu-shifted))))))
 
     (describe "system functions"
-      (let [cpu (io-mount cpu 0xfffa 0xffff {})]
+      (let [cpu (io-mount cpu :interrupt-vector 0xfffa 0xffff {})]
         (describe "brk"
           (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
               (let [[_ cpu-with-vector] (io-> cpu
@@ -542,7 +542,7 @@
             (should= 0xbeef (:pc new-cpu))))
 
         (it "should push the return point of the function call (the next instruction after the jump) to the stack"
-          (let [cpu (io-mount cpu 0x2000 0xffff {})
+          (let [cpu (io-mount cpu :fake-ram 0x2000 0xffff {})
                 new-cpu ((op :jsr) (assoc cpu :pc 0xffdd) absolute)]
             (should= 0xde (peek-stack-n new-cpu 0))
             (should= 0xff (peek-stack-n new-cpu 1)))))

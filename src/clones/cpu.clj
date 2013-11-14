@@ -30,8 +30,8 @@
                  (partition 2 ~opcodes))))))
 
 (defn make-cpu []
-  (CPU. 0 0 0 0xfd 0x24 0 (-> []
-                            (mount-device 0 0x1fff {}))))
+  (CPU. 0 0 0 0xfd 0x24 0 (-> {}
+                            (mount-device :internal-ram 0 0x1fff {}))))
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))

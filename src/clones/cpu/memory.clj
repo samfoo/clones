@@ -19,35 +19,37 @@
     (<= (:start m1) (:end m2))
     (<= (:start m2) (:end m1))))
 
+(defn mount-exists? [mounts m]
+  (some #(mounts-overlap? m %) mounts))
+
 (defmacro mount-contains? [mount addr]
   `(and
      (<= (:start ~mount) ~addr)
      (>= (:end ~mount) ~addr)))
 
-(defn mount-exists? [mounts m]
-  (some #(mounts-overlap? m %) mounts))
-
 (defn mount-str [mount]
   (pr-str (merge (select-keys mount [:start :end]) (meta mount))))
 
 (defn mounts-str [mounts]
-  (str/join ", " (map mount-str mounts)))
+  (str/join ", " (map mount-str (vals mounts))))
 
 (defn mount-device
-  [mounts start-addr end-addr device]
+  [mounts dev-name start-addr end-addr device]
   (let [m {:start start-addr :end end-addr :device device}
-        overlaps? (mount-exists? mounts m)]
-    (if overlaps?
-      (throw (Error.
-               (format "Device already mounted at 0x%04X to 0x%04x, current devices: [%s]"
-                       start-addr end-addr
-                       (mounts-str mounts))))
-      (conj mounts m))))
-
-(defmacro error-if-invalid-addr [mounts addr]
-  `(if (not-any? #(mount-contains? % ~addr) ~mounts)
-     (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" ~addr (mounts-str ~mounts))))
-     nil))
+        new-meta (assoc (meta mounts) dev-name {:start start-addr
+                                                :end end-addr})
+        overlaps? (mount-exists? (vals mounts) m)
+        has-name? (contains? mounts dev-name)]
+    (cond
+      overlaps?  (throw (Error.
+                          (format "Device already mounted at 0x%04X to 0x%04x, current devices: [%s]"
+                                  start-addr end-addr
+                                  (mounts-str mounts))))
+      has-name? (throw (Error.
+                         (format "Duplicate mount name %s, current devices: [%s]"
+                                 dev-name
+                                 (mounts-str mounts))))
+      :else (with-meta (assoc mounts dev-name m) new-meta))))
 
 (defn- mount-write-rel [m v addr]
   (let [device (:device m)
@@ -55,37 +57,43 @@
         [_ device-after-write] (device-write device v relative-addr)]
     (assoc m :device device-after-write)))
 
+(defn- no-device-error [addr mounts]
+  (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts)))))
+
+(defn- mount-name-for-addr [mounts-meta addr]
+  (let [mount-pair (first (filter #(mount-contains? (second %) addr) mounts-meta))]
+    (if (nil? mount-pair)
+      (no-device-error addr mounts-meta)
+      (first mount-pair))))
+
+(def mount-name-for-addr-memo (memoize mount-name-for-addr))
+
 (defn- mounts-write-abs [mounts v addr]
-  (map
-    (fn [m]
-      (if (mount-contains? m addr)
-        (mount-write-rel m v addr)
-        m))
-    mounts))
+  (let [k (mount-name-for-addr-memo (meta mounts) addr)
+        m (k mounts)]
+    (assoc mounts k (mount-write-rel m v addr))))
 
 (defn mounts-write [mounts v addr]
-  (error-if-invalid-addr mounts addr)
   (let [mounts-after-write (mounts-write-abs mounts v addr)]
     [v mounts-after-write]))
 
 (defn mounts-read [mounts addr]
-  (error-if-invalid-addr mounts addr)
-  (reduce (fn [[result mounts-state] m]
-            (if (mount-contains? m addr)
-              (let [relative-addr (- addr (:start m))
-                    [v device-after-read] (device-read (:device m) relative-addr)
-                    mount-after-read (assoc m :device device-after-read)]
-                [v (conj mounts-state mount-after-read)])
-              [result (conj mounts-state m)])) [nil []] mounts))
+  (let [k (mount-name-for-addr-memo (meta mounts) addr)
+        m (k mounts)
+        relative-addr (- addr (:start m))
+        [v device-after-read] (device-read (:device m) relative-addr)
+        after-read (assoc m :device device-after-read)]
+    [v (assoc mounts k after-read)]))
 
 (defn mem-write [dev v addr]
   (assoc dev :memory (mounts-write (:memory dev)
                                     v
                                     addr)))
 
-(defn io-mount [dev start-addr end-addr mountable]
-  (assoc dev :memory
-         (mount-device (:memory dev)
+(defn io-mount [machine dev-name start-addr end-addr mountable]
+  (assoc machine :memory
+         (mount-device (:memory machine)
+                       dev-name
                        start-addr end-addr
                        mountable)))
 

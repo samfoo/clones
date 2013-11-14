@@ -147,6 +147,7 @@
 
     (it "should wrap if the result would be > 0xffff"
       (let [cpu-with-pc (io-mount (assoc cpu :pc 0xffff)
+                                  :fake-ram
                                   0x2000 0xffff {})
             [_ new-cpu] (io-> cpu-with-pc
                               (io-write 0x79 (:pc cpu-with-pc)))]
