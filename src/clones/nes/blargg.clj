@@ -32,7 +32,8 @@
 
 (defn -main [& args]
   (doseq [rom args]
-    (let [pre-test-nes (await-test-start (init-nes rom))
-          result-state (await-test-finish pre-test-nes 0)]
-      (println (current-result-text result-state)))))
+    (time
+      (let [pre-test-nes (await-test-start (init-nes rom))
+            result-state (await-test-finish pre-test-nes 0)]
+        (println (current-result-text result-state))))))
 
