@@ -19,10 +19,10 @@
     (<= (:start m1) (:end m2))
     (<= (:start m2) (:end m1))))
 
-(defn mount-contains? [mount addr]
-  (and
-    (<= (:start mount) addr)
-    (>= (:end mount) addr)))
+(defmacro mount-contains? [mount addr]
+  `(and
+     (<= (:start ~mount) ~addr)
+     (>= (:end ~mount) ~addr)))
 
 (defn mount-exists? [mounts m]
   (some #(mounts-overlap? m %) mounts))
@@ -44,10 +44,10 @@
                        (mounts-str mounts))))
       (conj mounts m))))
 
-(defn error-if-invalid-addr [mounts addr]
-  (if (not-any? #(mount-contains? % addr) mounts)
-    (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts))))
-    nil))
+(defmacro error-if-invalid-addr [mounts addr]
+  `(if (not-any? #(mount-contains? % ~addr) ~mounts)
+     (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" ~addr (mounts-str ~mounts))))
+     nil))
 
 (defn- mount-write-rel [m v addr]
   (let [device (:device m)
