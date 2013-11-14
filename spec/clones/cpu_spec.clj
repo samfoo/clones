@@ -72,6 +72,13 @@
       ;; Particularly the flag settings aren't unit tested. The nestest rom
       ;; does test the flags, and these should all pass that
 
+      (describe "*shy"
+        (it "should store (Y & (mode address high byte + 1)) at the address mode"
+          (let [new-cpu ((op :*shy) (second (io-> (assoc cpu :y 0xff)
+                                                  (io-write 0 0)
+                                                  (io-write 1 1))) absolute)]
+            (should= 2 (io-debug-> new-cpu (io-read 0x100))))))
+
       (describe "*arr"
         (check-pc-increments cpu (op :*arr) [1 :immediate])
 

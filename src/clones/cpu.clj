@@ -774,5 +774,14 @@
       (set-flag overflow-flag overflowed?)
       (advance-pc address-mode))))
 
-(defop *shy [0x9c absolute-x] (advance-pc cpu address-mode))
-(defop *shx [0x9e absolute-y] (advance-pc cpu address-mode))
+(defn- sh*-op [cpu address-mode reg]
+  (let [[addr after-io] (io-> cpu (address-mode))
+        high (unsigned-byte (+ 1 (high-byte addr)))
+        result (bit-and (reg after-io) high)
+        [_ after-write] (io-> after-io
+                              (mode-write address-mode result))]
+    (-> after-write
+      (advance-pc address-mode))))
+
+(defop *shy [0x9c absolute-x] (sh*-op cpu address-mode :y))
+(defop *shx [0x9e absolute-y] (sh*-op cpu address-mode :x))
