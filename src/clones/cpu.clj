@@ -8,8 +8,16 @@
 
 (defn op [n] (n ops))
 
+(defrecord CPU [^int a
+                ^int x
+                ^int y
+                ^int sp
+                ^int p
+                ^int pc
+                memory])
+
 (defmacro defop [op-name opcodes action]
-  (let [fn-args ['cpu 'address-mode]]
+  (let [fn-args [^CPU 'cpu 'address-mode]]
     `(let [~'op-fn (fn ~fn-args ~action)]
        (def ops (assoc ops (keyword '~op-name) ~'op-fn))
        (def op-codes
@@ -22,15 +30,8 @@
                  (partition 2 ~opcodes))))))
 
 (defn make-cpu []
-  (let [state {:a 0
-               :x 0
-               :y 0
-               :sp (unsigned-byte 0xfd)
-               :p 0x24
-               :pc 0}
-        memory (-> []
-                 (mount-device 0 0x1fff {}))]   ;; 8kb of internal ram.
-    (assoc state :memory memory)))
+  (CPU. 0 0 0 0xfd 0x24 0 (-> []
+                            (mount-device 0 0x1fff {}))))
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))
