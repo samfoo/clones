@@ -73,7 +73,7 @@
       (bit-mask (dec n)))
     0))
 
-(defn- sum [s] (reduce #(+ %1 %2) 0 s))
+(defn- sum [s] (reduce + 0 s))
 
 (defn- bit-val [b len offset]
   (let [shift-amt (- offset len)
