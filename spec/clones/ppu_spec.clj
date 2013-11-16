@@ -15,6 +15,31 @@
       (it "should have the write latch set initially"
         (should (:write-latch? (make-ppu)))))
 
+    (describe "read from the oam data register at $2004"
+      (it "should read the value pointed at by the oam addr"
+        (let [ppu-w-oam-data (assoc ppu :oam-ram {0 0xbe})]
+          (should= 0xbe (first (device-read ppu-w-oam-data 4))))))
+
+    (describe "write to the oam data register at $2004"
+      (it "should modulo the oam address with 0x100 after incrementing"
+        (let [ppu-w-oam-addr (assoc ppu :oam-addr 0xff)
+              new-ppu (second (device-write ppu-w-oam-addr 0 4))]
+          (should= 0 (:oam-addr new-ppu))))
+
+      (it "should increment the oam address"
+        (let [new-ppu (second (device-write ppu 0xff 4))]
+          (should= 1 (:oam-addr new-ppu))))
+
+      (it "should update the value pointed at by the oam addr"
+        (let [ppu-w-oam-addr (assoc ppu :oam-addr 5)
+              new-ppu (second (device-write ppu-w-oam-addr 0xff 4))]
+          (should= 0xff (get (:oam-ram new-ppu) 5 0)))))
+
+    (describe "write to the oam address register at $2003"
+      (it "should set the oam address to the written value"
+        (let [new-ppu (second (device-write ppu 0xff 3))]
+          (should= 0xff (:oam-addr new-ppu)))))
+
     (describe "reading the status register at $2002"
       ;; TODO: Suppress NMI and suppress vblank states
 

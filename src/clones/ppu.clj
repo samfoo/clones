@@ -22,7 +22,25 @@
               :intense-greens?          (bit-set? v 6)
               :intense-blues?           (bit-set? v 7)}))
 
-(defn status-read [ppu addr]
+(defn oam-addr-write [ppu v]
+  (assoc ppu :oam-addr v))
+
+(defn- advance-oam-addr [ppu]
+  (let [orig (:oam-addr ppu)
+        incd (mod (inc orig) 0x100)]
+    (assoc ppu :oam-addr incd)))
+
+(defn oam-data-write [ppu v]
+  (let [after-write (assoc (:oam-ram ppu) (:oam-addr ppu) v)]
+    (-> ppu
+      (advance-oam-addr)
+      (assoc :oam-ram after-write))))
+
+(defn oam-data-read [ppu]
+  [(get (:oam-ram ppu) (:oam-addr ppu) 0)
+   ppu])
+
+(defn status-read [ppu]
   [(-> 0
      (bit-or (if (:vblank-started? ppu) 0x80 0))
      (bit-or (if (:sprite-0-hit? ppu) 0x40 0))
@@ -32,11 +50,14 @@
 (defn register-write [ppu v addr]
   [v (condp = addr
        0 (control-write ppu v)
-       1 (mask-write ppu v))])
+       1 (mask-write ppu v)
+       3 (oam-addr-write ppu v)
+       4 (oam-data-write ppu v))])
 
 (defn register-read [ppu addr]
   (condp = addr
-    2 (status-read ppu addr)))
+    2 (status-read ppu)
+    4 (oam-data-read ppu)))
 
 (defrecord PPU
   [^int control
@@ -60,7 +81,10 @@
    ^boolean sprite-overflow?
    ^boolean sprite-0-hit?
    ^boolean vblank-started?
-   ^boolean write-latch?]
+   ^boolean write-latch?
+
+   ^int oam-addr
+   oam-ram]
 
   Device
   (device-read [this addr]
@@ -69,7 +93,10 @@
   (device-write [this v addr]
     (register-write this v addr)))
 
+(def init-oam-ram (vec (repeat 0x100 0)))
+
 (defn make-ppu []
   (PPU. 0 0 0 0 0 0 false
         0 false false false false false false false false
-        false false false true))
+        false false false true
+        0 init-oam-ram))
