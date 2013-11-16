@@ -11,6 +11,42 @@
     ;; device IO is relative. So the absolute read of $2000 would read $0000 on
     ;; the PPU
 
+    (describe "make-ppu"
+      (it "should have the write latch set initially"
+        (should (:write-latch? (make-ppu)))))
+
+    (describe "reading the status register at $2002"
+      ;; TODO: Suppress NMI and suppress vblank states
+
+      (it "should set the write latch to true"
+        (let [ppu-w-latch-false (assoc ppu :write-latch? false)
+              new-ppu (second (device-read ppu-w-latch-false 2))]
+          (should (:write-latch? new-ppu))))
+
+      (it "should have bit 7 unset if vblank hasn't started"
+        (let [ppu-w-vbl (assoc ppu :vblank-started? false)]
+          (should= 0 (first (device-read ppu-w-vbl 2)))))
+
+      (it "should have bit 7 set if vblank has started"
+        (let [ppu-w-vbl (assoc ppu :vblank-started? true)]
+          (should= 0x80 (first (device-read ppu-w-vbl 2)))))
+
+      (it "should have bit 6 unset if sprite 0 wasn't hit"
+        (let [ppu-w-s0 (assoc ppu :sprite-0-hit? false)]
+          (should= 0 (first (device-read ppu-w-s0 2)))))
+
+      (it "should have bit 6 set if sprite 0 was hit"
+        (let [ppu-w-s0 (assoc ppu :sprite-0-hit? true)]
+          (should= 0x40 (first (device-read ppu-w-s0 2)))))
+
+      (it "should have bit 5 unset if there wasn't a sprite overflow"
+        (let [ppu-w-overflow (assoc ppu :sprite-overflow? false)]
+          (should= 0 (first (device-read ppu-w-overflow 2)))))
+
+      (it "should have bit 5 set if there was a sprite overflow"
+        (let [ppu-w-overflow (assoc ppu :sprite-overflow? true)]
+          (should= 0x20 (first (device-read ppu-w-overflow 2))))))
+
     (describe "writing to the mask register at $2001"
       (defn check-mask [m field]
         (let [on (second (device-write ppu m 1))

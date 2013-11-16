@@ -22,36 +22,54 @@
               :intense-greens?          (bit-set? v 6)
               :intense-blues?           (bit-set? v 7)}))
 
+(defn status-read [ppu addr]
+  [(-> 0
+     (bit-or (if (:vblank-started? ppu) 0x80 0))
+     (bit-or (if (:sprite-0-hit? ppu) 0x40 0))
+     (bit-or (if (:sprite-overflow? ppu) 0x20 0)))
+   (assoc ppu :write-latch? true)])
+
 (defn register-write [ppu v addr]
+  [v (condp = addr
+       0 (control-write ppu v)
+       1 (mask-write ppu v))])
+
+(defn register-read [ppu addr]
   (condp = addr
-    0 (control-write ppu v)
-    1 (mask-write ppu v)))
+    2 (status-read ppu addr)))
 
 (defrecord PPU
-  [control
-   base-nametable-address
-   vram-addr-inc
-   sprite-pattern-addr
-   background-pattern-addr
-   sprite-size
-   nmi-on-vblank?
+  [^int control
+   ^int base-nametable-address
+   ^int vram-addr-inc
+   ^int sprite-pattern-addr
+   ^int background-pattern-addr
+   ^int sprite-size
+   ^boolean nmi-on-vblank?
 
-   mask
-   grayscale?
-   show-background-on-left?
-   show-sprites-on-left?
-   show-background?
-   show-sprites?
-   intense-reds?
-   intense-greens?
-   intense-blues?]
+   ^int mask
+   ^boolean grayscale?
+   ^boolean show-background-on-left?
+   ^boolean show-sprites-on-left?
+   ^boolean show-background?
+   ^boolean show-sprites?
+   ^boolean intense-reds?
+   ^boolean intense-greens?
+   ^boolean intense-blues?
+
+   ^boolean sprite-overflow?
+   ^boolean sprite-0-hit?
+   ^boolean vblank-started?
+   ^boolean write-latch?]
 
   Device
-  (device-read [this addr] [nil nil])
+  (device-read [this addr]
+    (register-read this addr))
 
   (device-write [this v addr]
-    [v (register-write this v addr)]))
+    (register-write this v addr)))
 
 (defn make-ppu []
   (PPU. 0 0 0 0 0 0 false
-        0 false false false false false false false false))
+        0 false false false false false false false false
+        false false false true))
