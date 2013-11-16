@@ -64,7 +64,7 @@
 (def overflow-flag 0x40)
 (def negative-flag 0x80)
 
-(defn flag? [flags mask] (bit-set? flags mask))
+(defn flag? [flags mask] (= mask (bit-and flags mask)))
 (defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
 (defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
 (defn decimal-flag? [cpu] (flag? (:p cpu) decimal-flag))
@@ -118,9 +118,9 @@
 ;; Arithmetic operations
 (defn subtract-overflowed?
   [orig operand result]
-  (let [orig-neg? (bit-set? orig 0x80)
-        operand-neg? (bit-set? operand 0x80)
-        result-neg? (bit-set? result 0x80)]
+  (let [orig-neg? (bit-set? orig 7)
+        operand-neg? (bit-set? operand 7)
+        result-neg? (bit-set? result 7)]
     (if (and (not orig-neg?) operand-neg? result-neg?)
       ;; Subtracting a negative from a positive shouldn't result in a negative
       true
@@ -132,9 +132,9 @@
 
 (defn add-overflowed?
   [orig operand result]
-  (let [orig-neg? (bit-set? orig 0x80)
-        operand-neg? (bit-set? operand 0x80)
-        result-neg? (bit-set? result 0x80)]
+  (let [orig-neg? (bit-set? orig 7)
+        operand-neg? (bit-set? operand 7)
+        result-neg? (bit-set? result 7)]
     (if (and (not orig-neg?) (not operand-neg?) result-neg?)
       ;; Adding two positives should not result in a negative
       true
@@ -504,8 +504,8 @@
                                                        (unsigned-byte
                                                          (bit-shift-left before 1)))]
                                              [before after]) cpu)
-        carried? (bit-set? orig 0x80)
-        negative? (bit-set? result 0x80)]
+        carried? (bit-set? orig 7)
+        negative? (bit-set? result 7)]
     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
@@ -526,7 +526,7 @@
                                                       (unsigned-byte
                                                         (bit-shift-right before 1)))]
                                              [before after]) cpu)
-        carried? (bit-set? orig 1)]
+        carried? (bit-set? orig 0)]
     (-> after-io
       (set-flag carry-flag carried?)
       (set-flag negative-flag false)
@@ -553,8 +553,8 @@
                                               after (mode-write address-mode
                                                       (rotate-l before with-carry?))]
                                              [before after]) cpu)
-        carried? (bit-set? orig 0x80)
-        negative? (bit-set? result 0x80)]
+        carried? (bit-set? orig 7)
+        negative? (bit-set? result 7)]
     (-> after-io
       (set-flag negative-flag negative?)
       (set-flag zero-flag (zero? result))
@@ -581,8 +581,8 @@
                                               after (mode-write address-mode
                                                       (rotate-r before with-carry?))]
                                              [before after]) cpu)
-        carried? (bit-set? orig 1)
-        negative? (bit-set? result 0x80)]
+        carried? (bit-set? orig 0)
+        negative? (bit-set? result 7)]
     (-> after-io
       (set-flag zero-flag (zero? result))
       (set-flag negative-flag negative?)
@@ -736,7 +736,7 @@
              0x2b immediate]
   (let [[operand after-io] (io-> cpu (mode-read address-mode))
         after-and (logical-op after-io address-mode operand bit-and)
-        carried? (bit-set? (:a after-and) 0x80)]
+        carried? (bit-set? (:a after-and) 7)]
     (-> after-and
       (set-flag carry-flag carried?))))
 
@@ -762,7 +762,7 @@
   (let [[operand after-io] (io-> cpu (mode-read address-mode))
         anded (bit-and (:a after-io) operand)
         rotated (rotate-r anded (carry-flag? after-io))
-        carried? (bit-set? rotated 0x40)
+        carried? (bit-set? rotated 6)
         overflowed? (not= 0
                           (bit-xor
                             (bit-and rotated 0x40)
