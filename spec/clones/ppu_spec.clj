@@ -16,6 +16,21 @@
       (it "should have the write latch set initially"
         (should (:write-latch? (make-ppu)))))
 
+    (describe "write to the data register at $2007"
+      (describe "when vram address increment is 1"
+        (it "should increment the vram address by 32"
+          (let [new-ppu (second (device-write (assoc ppu
+                                                     :vram-addr-inc 1)
+                                              0 7))]
+            (should= 0x20 (:vram-addr new-ppu)))))
+
+      (describe "when vram address increment is 0"
+        (it "should increment the vram address by 1"
+          (let [new-ppu (second (device-write (assoc ppu
+                                                    :vram-addr-inc 0)
+                                              0 7))]
+            (should= 1 (:vram-addr new-ppu))))))
+
     (describe "write to the addr register at $2006"
       (describe "when the write latch is off"
         (it "should copy the vram latch into the vram address"

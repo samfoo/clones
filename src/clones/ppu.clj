@@ -80,6 +80,14 @@
                       (addr-write-second ppu v))]
     (assoc after-write :write-latch? (not (:write-latch? ppu)))))
 
+(defn- advance-vram-addr [ppu]
+  (assoc ppu :vram-addr (if (= 0 (:vram-addr-inc ppu))
+                          (+ 1 (:vram-addr ppu))
+                          (+ 0x20 (:vram-addr ppu)))))
+
+(defn data-write [ppu v]
+  (advance-vram-addr ppu))
+
 (defn oam-data-read [ppu]
   [(get (:oam-ram ppu) (:oam-addr ppu) 0)
    ppu])
@@ -98,7 +106,8 @@
        3 (oam-addr-write ppu v)
        4 (oam-data-write ppu v)
        5 (scroll-write ppu v)
-       6 (addr-write ppu v))])
+       6 (addr-write ppu v)
+       7 (data-write ppu v))])
 
 (defn register-read [ppu addr]
   (condp = addr
