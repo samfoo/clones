@@ -1,6 +1,6 @@
 (ns clones.ppu
-  (:require [clones.cpu.memory :refer :all]
-            [clones.byte       :refer :all]))
+  (:require [clones.device :refer :all]
+            [clones.byte   :refer :all]))
 
 (defn control-write [ppu v]
   (merge ppu {:control                 v

@@ -1,6 +1,6 @@
 (ns clones.nes.mappers.nrom-spec
   (:require [speclj.core             :refer :all]
-            [clones.cpu.memory       :refer :all]
+            [clones.device           :refer :all]
             [clones.nes.mappers.nrom :refer :all]))
 
 (def rom (nrom {:prg-banks 1

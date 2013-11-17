@@ -1,5 +1,5 @@
 (ns clones.nes.mappers.nrom
-  (:require [clones.cpu.memory :refer :all]))
+  (:require [clones.device :refer :all]))
 
 (defn- nrom-read-ram [nrom addr]
   [(get (:prg-ram nrom) addr 0) nrom])

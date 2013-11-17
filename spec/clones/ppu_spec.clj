@@ -1,7 +1,7 @@
 (ns clones.ppu-specj
-  (:require [speclj.core       :refer :all]
-            [clones.cpu.memory :refer :all]
-            [clones.ppu        :refer :all]))
+  (:require [speclj.core   :refer :all]
+            [clones.device :refer :all]
+            [clones.ppu    :refer :all]))
 
 (def ppu (make-ppu))
 (def ppu-latch-off (assoc ppu :write-latch? false))
