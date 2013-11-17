@@ -4,6 +4,7 @@
             [clones.ppu        :refer :all]))
 
 (def ppu (make-ppu))
+(def ppu-latch-off (assoc ppu :write-latch? false))
 
 (describe "The NES's 2C02 PPU"
   (describe "writing to the memory mapped registers"
@@ -14,6 +15,59 @@
     (describe "make-ppu"
       (it "should have the write latch set initially"
         (should (:write-latch? (make-ppu)))))
+
+    (describe "write to the scroll register at $2005"
+      (describe "when the write latch is off (updating vertical offset)"
+        (it "should overwrite the existing bit 9-5 of the 15 bit vram latch
+            with the upper 5 bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write (assoc
+                                                ppu-latch-off
+                                                :vram-latch 0x3e0) 0 5))]
+            (should= 0 (:vram-latch new-ppu))))
+
+        (it "should update bits 9-5 of the 15 bit vram latch with the upper 5
+            bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write ppu-latch-off 0xf8 5))]
+            (should= 0x3e0 (:vram-latch new-ppu))))
+
+        (it "should overwrite the existing upper 3 bits of the 15 bit vram latch
+            with the lower 3 bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write (assoc
+                                                ppu-latch-off
+                                                :vram-latch 0x7000) 0 5))]
+            (should= 0 (:vram-latch new-ppu))))
+
+        (it "should update the upper 3 bits of the 15 bit vram latch with the
+            lower 3 bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write ppu-latch-off 7 5))]
+            (should= 0x7000 (:vram-latch new-ppu)))))
+
+      (describe "when the write latch is on (updating horizontal offset)"
+        (it "shouldn't alter the upper 10 bits of the 15 bit vram latch when
+            updating the lower 5 bits"
+          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x7fe0) 0xa8 5))]
+            (should= 0x7ff5 (:vram-latch new-ppu))))
+
+        (it "should overwrite the existing lower 5 bits of the 15 bit vram
+            latch with the upper 5 bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x15) 0 5))]
+            (should= 0 (:vram-latch new-ppu))))
+
+        (it "should update the lower 5 bits of the 15 bit vram latch with the
+            upper 5 bits of the 8 bit value that was written"
+          (let [new-ppu (second (device-write ppu 0xff 5))]
+            (should= 0x1f (:vram-latch new-ppu))))
+
+        (it "should copy the first three bits of the written value into the
+            fine X internal register"
+          (let [new-ppu (second (device-write ppu 0xff 5))]
+            (should= 7 (:fine-x new-ppu)))))
+
+      (it "should flip the write latch"
+        (let [off (second (device-write ppu 0 5))
+              on (second (device-write off 0 5))]
+          (should (:write-latch? on))
+          (should-not (:write-latch? off)))))
 
     (describe "read from the oam data register at $2004"
       (it "should read the value pointed at by the oam addr"
