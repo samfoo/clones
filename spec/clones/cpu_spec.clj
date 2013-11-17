@@ -4,7 +4,7 @@
             [clones.cpu.memory     :refer :all]
             [clones.cpu.addressing :refer :all]))
 
-(def cpu (make-cpu))
+(def cpu (make-cpu {}))
 (def cpu-with-carry (assoc cpu :p carry-flag))
 (def cpu-with-zero (assoc cpu :p zero-flag))
 (def cpu-with-negative (assoc cpu :p negative-flag))
@@ -416,26 +416,25 @@
             (should= 2 (:a cpu-shifted))))))
 
     (describe "system functions"
-      (let [cpu (io-mount cpu :interrupt-vector 0xfffa 0xffff {})]
-        (describe "brk"
-          (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
-              (let [[_ cpu-with-vector] (io-> cpu
-                                              (io-write 0xff 0xffff)
-                                              (io-write 0xee 0xfffe))
-                    new-cpu ((op :brk) cpu-with-vector implied)]
-              (should= 0xffee (:pc new-cpu))))
+      (describe "brk"
+        (it "should set the program counter to the value at 0xfffe (the IRQ/BRK vector)"
+            (let [[_ cpu-with-vector] (io-> cpu
+                                            (io-write 0xff 0xffff)
+                                            (io-write 0xee 0xfffe))
+                  new-cpu ((op :brk) cpu-with-vector implied)]
+            (should= 0xffee (:pc new-cpu))))
 
-          (it "should push the current program counter (plus 1) to the stack"
-            (let [new-cpu ((op :brk) (assoc cpu :pc 0xbeef) implied)
-                  low (peek-stack-n new-cpu 1)
-                  high (peek-stack-n new-cpu 2)]
-              (should= 0xbe high)
-              (should= 0xf0 low)))
+        (it "should push the current program counter (plus 1) to the stack"
+          (let [new-cpu ((op :brk) (assoc cpu :pc 0xbeef) implied)
+                low (peek-stack-n new-cpu 1)
+                high (peek-stack-n new-cpu 2)]
+            (should= 0xbe high)
+            (should= 0xf0 low)))
 
-          (it "should push processor flags to the stack with the interrupt flag set"
-            (let [new-cpu ((op :brk) (assoc cpu :p 0) implied)
-                  stack-top (peek-stack new-cpu)]
-              (should= 0x10 stack-top)))))
+        (it "should push processor flags to the stack with the interrupt flag set"
+          (let [new-cpu ((op :brk) (assoc cpu :p 0) implied)
+                stack-top (peek-stack new-cpu)]
+            (should= 0x10 stack-top))))
 
       (describe "nop"
         (it "should do nothing"
@@ -542,8 +541,7 @@
             (should= 0xbeef (:pc new-cpu))))
 
         (it "should push the return point of the function call (the next instruction after the jump) to the stack"
-          (let [cpu (io-mount cpu :fake-ram 0x2000 0xffff {})
-                new-cpu ((op :jsr) (assoc cpu :pc 0xffdd) absolute)]
+          (let [new-cpu ((op :jsr) (assoc cpu :pc 0xffdd) absolute)]
             (should= 0xde (peek-stack-n new-cpu 0))
             (should= 0xff (peek-stack-n new-cpu 1)))))
 

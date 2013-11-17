@@ -5,7 +5,7 @@
             [clones.cpu.memory     :refer :all]
             [clones.cpu.addressing :refer :all]))
 
-(def cpu (make-cpu))
+(def cpu (make-cpu {}))
 (def cpu-with-zp
   (let [zp-addr 0x55
         [_ new-cpu] (io-> cpu
@@ -146,9 +146,7 @@
         (should= 0xff81 (do-mode relative new-cpu))))
 
     (it "should wrap if the result would be > 0xffff"
-      (let [cpu-with-pc (io-mount (assoc cpu :pc 0xffff)
-                                  :fake-ram
-                                  0x2000 0xffff {})
+      (let [cpu-with-pc (assoc cpu :pc 0xffff)
             [_ new-cpu] (io-> cpu-with-pc
                               (io-write 0x79 (:pc cpu-with-pc)))]
         (should= 0x79 (do-mode relative new-cpu))))

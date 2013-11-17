@@ -14,98 +14,80 @@
   (device-read [this addr] [(get this addr 0) this])
   (device-write [this v addr] [v (assoc this addr v)]))
 
-(defn mounts-overlap? [m1 m2]
-  (and
-    (<= (:start m1) (:end m2))
-    (<= (:start m2) (:end m1))))
+(defn- bus-read-internal-ram [bus addr]
+  (let [mirrored-addr (bit-and 0x7ff addr)]
+    [(get (:internal-ram bus) mirrored-addr 0) bus]))
 
-(defn mount-exists? [mounts m]
-  (some #(mounts-overlap? m %) mounts))
+(defn- bus-write-internal-ram [bus v addr]
+  (let [mirrored-addr (bit-and 0x7ff addr)
+        ram (:internal-ram bus)
+        after-write (assoc ram mirrored-addr v)]
+    [v (assoc bus :internal-ram after-write)]))
 
-(defmacro mount-contains? [mount addr]
-  `(and
-     (<= (:start ~mount) ~addr)
-     (>= (:end ~mount) ~addr)))
+(defn- bus-read-device [bus device-name addr]
+  (let [[v new-device] (device-read (device-name bus) addr)]
+    [v (assoc bus device-name new-device)]))
 
-(defn mount-str [mount]
-  (pr-str (merge (select-keys mount [:start :end]) (meta mount))))
+(defn- bus-write-device [bus device-name v addr]
+  (let [[_ new-device] (device-write (device-name bus) v addr)]
+    [v (assoc bus device-name new-device)]))
 
-(defn mounts-str [mounts]
-  (str/join ", " (map mount-str (vals mounts))))
+(defn- bus-read-ppu [bus addr]
+  (let [relative-addr (bit-and 7 addr)]
+    (bus-read-device bus :ppu relative-addr)))
 
-(defn mount-device
-  [mounts dev-name start-addr end-addr device]
-  (let [m {:start start-addr :end end-addr :device device}
-        new-meta (assoc (meta mounts) dev-name {:start start-addr
-                                                :end end-addr})
-        overlaps? (mount-exists? (vals mounts) m)
-        has-name? (contains? mounts dev-name)]
-    (cond
-      overlaps?  (throw (Error.
-                          (format "Device already mounted at 0x%04X to 0x%04x, current devices: [%s]"
-                                  start-addr end-addr
-                                  (mounts-str mounts))))
-      has-name? (throw (Error.
-                         (format "Duplicate mount name %s, current devices: [%s]"
-                                 dev-name
-                                 (mounts-str mounts))))
-      :else (with-meta (assoc mounts dev-name m) new-meta))))
+(defn- bus-write-ppu [bus v addr]
+  (let [relative-addr (bit-and 7 addr)]
+    (bus-write-device bus :ppu v relative-addr)))
 
-(defn- mount-write-rel [m v addr]
-  (let [device (:device m)
-        relative-addr (- addr (:start m))
-        [_ device-after-write] (device-write device v relative-addr)]
-    (assoc m :device device-after-write)))
+(defn- bus-read-apu [bus addr]
+  (let [relative-addr (bit-and 0x1f addr)]
+    (bus-read-device bus :apu relative-addr)))
 
-(defn- no-device-error [addr mounts]
-  (throw (Error. (format "No device is mounted at 0x%04X, current devices: [%s]" addr (mounts-str mounts)))))
+(defn- bus-write-apu [bus v addr]
+  (let [relative-addr (bit-and 0x1f addr)]
+    (bus-write-device bus :apu v relative-addr)))
 
-(defn- mount-name-for-addr [mounts-meta addr]
-  (let [mount-pair (first (filter #(mount-contains? (second %) addr) mounts-meta))]
-    (if (nil? mount-pair)
-      (no-device-error addr mounts-meta)
-      (first mount-pair))))
+(defn- bus-read-mapper [bus addr]
+  (bus-read-device bus :mapper addr))
 
-(def mount-name-for-addr-memo (memoize mount-name-for-addr))
+(defn- bus-write-mapper [bus v addr]
+  (bus-write-device bus :mapper v addr))
 
-(defn- mounts-write-abs [mounts v addr]
-  (let [k (mount-name-for-addr-memo (meta mounts) addr)
-        m (k mounts)]
-    (assoc mounts k (mount-write-rel m v addr))))
+(defn- bus-read [bus addr]
+  (cond
+    (< addr 0x2000) (bus-read-internal-ram bus addr)
+    (< addr 0x4000) (bus-read-ppu bus addr)
+    (< addr 0x4020) (bus-read-apu bus addr)
+    :else           (bus-read-mapper bus addr)))
 
-(defn mounts-write [mounts v addr]
-  (let [mounts-after-write (mounts-write-abs mounts v addr)]
-    [v mounts-after-write]))
+(defn- bus-write [bus v addr]
+  (cond
+    (< addr 0x2000) (bus-write-internal-ram bus v addr)
+    (< addr 0x4000) (bus-write-ppu bus v addr)
+    (< addr 0x4020) (bus-write-apu bus v addr)
+    :else           (bus-write-mapper bus v addr)))
 
-(defn mounts-read [mounts addr]
-  (let [k (mount-name-for-addr-memo (meta mounts) addr)
-        m (k mounts)
-        relative-addr (- addr (:start m))
-        [v device-after-read] (device-read (:device m) relative-addr)
-        after-read (assoc m :device device-after-read)]
-    [v (assoc mounts k after-read)]))
+(defrecord MemoryBus [internal-ram
+                      ppu
+                      apu
+                      mapper]
+  Device
+  (device-read [this addr] (bus-read this addr))
+  (device-write [this v addr] (bus-write this v addr)))
 
-(defn mem-write [dev v addr]
-  (assoc dev :memory (mounts-write (:memory dev)
-                                    v
-                                    addr)))
-
-(defn io-mount [machine dev-name start-addr end-addr mountable]
-  (assoc machine :memory
-         (mount-device (:memory machine)
-                       dev-name
-                       start-addr end-addr
-                       mountable)))
+(defn make-memory-bus [ppu apu mapper]
+  (MemoryBus. {} ppu apu mapper))
 
 (defn io-read [addr]
   (fn [dev]
-    (let [[v mounts-after-read] (mounts-read (:memory dev) addr)]
-      [v (assoc dev :memory mounts-after-read)])))
+    (let [[v bus-after-read] (device-read (:memory dev) addr)]
+      [v (assoc dev :memory bus-after-read)])))
 
 (defn io-write [v addr]
   (fn [dev]
-    (let [[v mounts-after-write] (mounts-write (:memory dev) v addr)]
-      [v (assoc dev :memory mounts-after-write)])))
+    (let [[v bus-after-write] (device-write (:memory dev) v addr)]
+      [v (assoc dev :memory bus-after-write)])))
 
 (defn io-write-word [v addr]
   (let [high (high-byte v)
