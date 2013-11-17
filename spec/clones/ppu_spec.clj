@@ -16,6 +16,45 @@
       (it "should have the write latch set initially"
         (should (:write-latch? (make-ppu)))))
 
+    (describe "write to the addr register at $2006"
+      (describe "when the write latch is off"
+        (it "should copy the vram latch into the vram address"
+          (let [new-ppu (second (device-write ppu-latch-off 0xff 6))]
+            (should= 0xff (:vram-addr new-ppu))))
+
+        (it "should overwrite the lower 8 bits of the vram latch with the
+            written value"
+          (let [new-ppu (second (device-write (assoc ppu-latch-off
+                                                     :vram-latch
+                                                     0x3fff) 0 6))]
+            (should= 0x3f00 (:vram-latch new-ppu))))
+
+        (it "should update the lower 8 bits of the vram latch with the written
+            value"
+          (let [new-ppu (second (device-write ppu-latch-off 0xff 6))]
+            (should= 0xff (:vram-latch new-ppu)))))
+
+      (describe "when the write latch is on"
+        (it "should clear bit 14 of the vram latch"
+          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x7fff) 0xff 6))]
+            (should= 0x3fff (:vram-latch new-ppu))))
+
+        (it "should overwrite the existing bits 13-8 with the lower 6 bits of
+            the 8 bit value that was written"
+          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x3f00) 0 6))]
+            (should= 0 (:vram-latch new-ppu))))
+
+        (it "should update bits 13-8 with the lower 6 bits of the 8 bit value
+            that was written"
+          (let [new-ppu (second (device-write ppu 0x3f 6))]
+            (should= 0x3f00 (:vram-latch new-ppu)))))
+
+      (it "should flip the write latch"
+        (let [off (second (device-write ppu 0 6))
+              on (second (device-write off 0 6))]
+          (should (:write-latch? on))
+          (should-not (:write-latch? off)))))
+
     (describe "write to the scroll register at $2005"
       (describe "when the write latch is off (updating vertical offset)"
         (it "should overwrite the existing bit 9-5 of the 15 bit vram latch

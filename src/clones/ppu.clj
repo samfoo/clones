@@ -60,6 +60,26 @@
                       (scroll-write-vertical-offset ppu v))]
     (assoc after-write :write-latch? (not (:write-latch? ppu)))))
 
+(defn- addr-write-first [ppu v]
+  (let [upper-6-bits (bit-and 0x3f v)
+        new-vram-latch (-> (:vram-latch ppu)
+                         (bit-and 0xff)
+                         (bit-or (bit-shift-left upper-6-bits 8)))]
+    (assoc ppu :vram-latch new-vram-latch)))
+
+(defn- addr-write-second [ppu v]
+  (let [new-vram-latch (-> (:vram-latch ppu)
+                         (bit-and 0x3f00)
+                         (bit-or v))]
+    (merge ppu {:vram-latch new-vram-latch
+                :vram-addr new-vram-latch})))
+
+(defn addr-write [ppu v]
+  (let [after-write (if (:write-latch? ppu)
+                      (addr-write-first ppu v)
+                      (addr-write-second ppu v))]
+    (assoc after-write :write-latch? (not (:write-latch? ppu)))))
+
 (defn oam-data-read [ppu]
   [(get (:oam-ram ppu) (:oam-addr ppu) 0)
    ppu])
@@ -77,7 +97,8 @@
        1 (mask-write ppu v)
        3 (oam-addr-write ppu v)
        4 (oam-data-write ppu v)
-       5 (scroll-write ppu v))])
+       5 (scroll-write ppu v)
+       6 (addr-write ppu v))])
 
 (defn register-read [ppu addr]
   (condp = addr
@@ -112,7 +133,8 @@
    oam-ram
 
    ^int fine-x
-   ^int vram-latch]
+   ^int vram-latch
+   ^int vram-addr]
 
   Device
   (device-read [this addr]
@@ -128,4 +150,4 @@
         0 false false false false false false false false
         false false false true
         0 init-oam-ram
-        0 0))
+        0 0 0))
