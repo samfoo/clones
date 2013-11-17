@@ -86,7 +86,29 @@
                           (+ 0x20 (:vram-addr ppu)))))
 
 (defn data-write [ppu v]
-  (advance-vram-addr ppu))
+  (let [memory (:memory ppu)
+        memory-after-write (second (device-write memory v (:vram-addr ppu)))
+        after-write (assoc ppu :memory memory-after-write)]
+    (advance-vram-addr after-write)))
+
+(defn- data-read-buffered [ppu]
+  (let [result (:vram-data-buffer ppu)
+        memory (:memory ppu)
+        new-vram-data-buffer (first (device-read memory (:vram-addr ppu)))]
+    [result (assoc ppu :vram-data-buffer new-vram-data-buffer)]))
+
+(defn- data-read-unbuffered [ppu]
+  (let [memory (:memory ppu)
+        result (first (device-read memory (:vram-addr ppu)))
+        buffer-fill-addr (- (:vram-addr ppu) 0x1000)
+        new-vram-data-buffer (first (device-read memory buffer-fill-addr))]
+    [result (assoc ppu :vram-data-buffer new-vram-data-buffer)]))
+
+(defn data-read [ppu]
+  (let [[result after-read] (if (< (:vram-addr ppu) 0x3f00)
+                              (data-read-buffered ppu)
+                              (data-read-unbuffered ppu))]
+    [result (advance-vram-addr after-read)]))
 
 (defn oam-data-read [ppu]
   [(get (:oam-ram ppu) (:oam-addr ppu) 0)
@@ -112,7 +134,8 @@
 (defn register-read [ppu addr]
   (condp = addr
     2 (status-read ppu)
-    4 (oam-data-read ppu)))
+    4 (oam-data-read ppu)
+    7 (data-read ppu)))
 
 (defrecord PPU
   [^int control
@@ -143,7 +166,10 @@
 
    ^int fine-x
    ^int vram-latch
-   ^int vram-addr]
+   ^int vram-addr
+   ^int vram-data-buffer
+
+   memory]
 
   Device
   (device-read [this addr]
@@ -154,9 +180,10 @@
 
 (def init-oam-ram (vec (repeat 0x100 0)))
 
-(defn make-ppu []
+(defn make-ppu [bus]
   (PPU. 0 0 0 0 0 0 false
         0 false false false false false false false false
         false false false true
         0 init-oam-ram
-        0 0 0))
+        0 0 0 0
+        bus))

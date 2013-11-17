@@ -3,20 +3,62 @@
             [clones.device :refer :all]
             [clones.ppu    :refer :all]))
 
-(def ppu (make-ppu))
+(def ppu (make-ppu {}))
 (def ppu-latch-off (assoc ppu :write-latch? false))
 
 (describe "The NES's 2C02 PPU"
-  (describe "writing to the memory mapped registers"
+  (describe "memory mapped register I/O"
     ;; NOTE: Remember that all devices are mounted to the memory bus, but that
     ;; device IO is relative. So the absolute read of $2000 would read $0000 on
     ;; the PPU
 
     (describe "make-ppu"
       (it "should have the write latch set initially"
-        (should (:write-latch? (make-ppu)))))
+        (should (:write-latch? (make-ppu {})))))
+
+    (describe "read from the data register at $2007"
+      (describe "when the address is >= $3f00"
+        (it "should read directly from the PPU's memory bus"
+          (let [ppu-w-data (merge ppu {:memory {0x3f00 0xff}
+                                       :vram-addr 0x3f00})]
+            (should= 0xff (first (device-read ppu-w-data 7)))))
+
+        (it "should fill the vram data buffer with the value read from the bus
+            $1000 below the current vram address"
+          (let [ppu-w-data (merge ppu {:memory {0x2f00 0xff}
+                                       :vram-addr 0x3f00})
+                new-ppu (second (device-read ppu-w-data 7))]
+            (should= 0xff (:vram-data-buffer new-ppu)))))
+
+      (describe "when the address is < $3f00"
+        (it "should read the current value of the vram data buffer"
+          (let [result (first (device-read (assoc ppu :vram-data-buffer 0xee) 7))]
+            (should= 0xee result)))
+
+        (it "should fill the vram data buffer with the value read from the bus"
+          (let [ppu-w-data (assoc ppu :memory {0 0xff})
+                new-ppu (second (device-read ppu-w-data 7))]
+            (should= 0xff (:vram-data-buffer new-ppu)))))
+
+      (describe "when vram address increment is 1"
+        (it "should increment the vram address by 32"
+          (let [new-ppu (second (device-read (assoc ppu
+                                                    :vram-addr-inc 1)
+                                             7))]
+            (should= 0x20 (:vram-addr new-ppu)))))
+
+      (describe "when vram address increment is 0"
+        (it "should increment the vram address by 1"
+          (let [new-ppu (second (device-read (assoc ppu
+                                                    :vram-addr-inc 0)
+                                             7))]
+            (should= 1 (:vram-addr new-ppu))))))
 
     (describe "write to the data register at $2007"
+      (it "should write to the PPU's memory bus at the vram address"
+        (let [new-ppu (second (device-write ppu 0xff 7))]
+          (should= 0xff (first (device-read (:memory new-ppu) 0)))))
+
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"
           (let [new-ppu (second (device-write (assoc ppu
