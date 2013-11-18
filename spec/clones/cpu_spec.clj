@@ -12,7 +12,7 @@
 (def cpu-with-interrupt (assoc cpu :p interrupt-flag))
 (def cpu-with-overflow (assoc cpu :p overflow-flag))
 
-(describe "The NES's 6502/2A03 CPU"
+(describe "The NES's 6502 2A03/7 CPU"
   (describe "instruction set"
     (defn check-zero-flag-sets [c]
       (it "should set the zero flag when the result is zero"
