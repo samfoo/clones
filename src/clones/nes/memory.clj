@@ -41,6 +41,18 @@
 (defn- bus-write-mapper [bus v addr]
   (bus-write-device bus :mapper v addr))
 
+(defn- bus-write-dma-at [bus addr]
+  (let [[v after-read] (device-read bus addr)
+        [_ after-write] (device-write bus v 0x2004)]
+    after-write))
+
+(defn- bus-write-dma [bus v addr]
+  (let [start-addr (bit-shift-left v 8)
+        end-addr (+ 0x100 start-addr)
+        addrs (range start-addr end-addr)
+        after-dma (reduce bus-write-dma-at bus addrs)]
+    [v after-dma]))
+
 (defn- bus-read [bus addr]
   (cond
     (< addr 0x2000) (bus-read-internal-ram bus addr)
@@ -52,6 +64,8 @@
   (cond
     (< addr 0x2000) (bus-write-internal-ram bus v addr)
     (< addr 0x4000) (bus-write-ppu bus v addr)
+    (< addr 0x4014) (bus-write-apu bus v addr)
+    (= addr 0x4014) (bus-write-dma bus v addr)
     (< addr 0x4020) (bus-write-apu bus v addr)
     :else           (bus-write-mapper bus v addr)))
 

@@ -6,6 +6,14 @@
 
 (def bus (make-memory {} {} {}))
 
+(defrecord MockPPU [writes]
+  Device
+  (device-read [this addr] [nil this])
+  (device-write [this v addr]
+    [v (MockPPU. (conj writes {addr v}))]))
+
+(defn dma-ppu [] (MockPPU. []))
+
 (describe
   "The NES's memory bus, mapped with devices like APU, PPU, and cartridge"
 
@@ -26,8 +34,31 @@
                                   {0x6000 0xbe})]
         (should= 0xbe (first (device-read bus-with-value 0x6000))))))
 
-  (describe "$4000 - $40ff"
+  (describe "$4014 where the written value is $xx"
+    (should-return-bus-after-reading 0x4014)
+
+    (it "should read 256 bytes from $xx00 - $xxff and write them to $2014"
+      (let [ppu (dma-ppu)
+            bus-with-oam (merge bus
+                                {:mapper {0x4400 0x11 0x44ff 0xff}
+                                 :ppu ppu})
+            [_ after-dma] (device-write bus-with-oam 0x44 0x4014)]
+        (should= 256 (count (:writes (:ppu after-dma))))
+        (should= {4 0x11} (first (:writes (:ppu after-dma))))
+        (should= {4 0xff} (last (:writes (:ppu after-dma)))))))
+
+  (describe "$4000 - $4013, $4015"
     (should-return-bus-after-reading 0x4000)
+
+    (it "should write to the APU at $4015"
+      (let [after-write (second (device-write bus 0xff 0x4015))]
+        (should= 0xff (first (device-read after-write 0x4015)))))
+
+    (it "should read from the APU at $4015, relative to $4000"
+      (let [bus-with-value (assoc bus
+                                  :apu
+                                  {0x15 0xbe})]
+        (should= 0xbe (first (device-read bus-with-value 0x4015)))))
 
     (it "should write to the APU"
       (let [after-write (second (device-write bus 0xff 0x4000))]
