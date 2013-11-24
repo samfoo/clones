@@ -8,8 +8,17 @@
             [clones.cpu.debug  :refer :all]
             [clones.cpu.memory :refer :all]))
 
+(defn- lazy-debug-w-cycles [nes total-cycles]
+  (let [cycles (mod (* 3 total-cycles) 341)]
+    (cons
+      (format "%s CYC:%3d" (debug-step nes) cycles)
+      (lazy-seq
+        (let [[cs new-nes] (step nes)]
+          (lazy-debug-w-cycles new-nes (+ total-cycles cs)))))))
+
+
 (defn- lazy-debug [nes]
-  (cons (debug-step nes) (lazy-seq (lazy-debug (step nes)))))
+  (lazy-debug-w-cycles nes 0))
 
 (defn read-nintendulator-log [f]
   (with-open [rdr (reader f)]

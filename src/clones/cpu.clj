@@ -14,7 +14,6 @@
                 ^int sp
                 ^int p
                 ^int pc
-                ^int total-cycles
                 memory])
 
 (defmacro defop [op-name opcodes action]
@@ -33,20 +32,16 @@
                  op-codes
                  (partition 3 ~opcodes))))))
 
-(defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 0 bus))
+(defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 bus))
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))
 
-(defn- execute [cpu op]
-  (let [{:keys [address-mode name]} (meta op)]
-    (op cpu address-mode)))
-
 (defn execute-with-timing [cpu op]
   (let [{:keys [address-mode name cycles]} (meta op)
         after-op (op cpu address-mode)
-        total-cycles (cycles cpu after-op address-mode)]
-    [total-cycles after-op]))
+        cs (cycles cpu after-op address-mode)]
+    [cs after-op]))
 
 (defn- advance-pc [cpu mode]
   (assoc cpu :pc (+
@@ -59,9 +54,7 @@
     (if (nil? op)
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
       nil)
-    (let [[cycles after-op] (execute-with-timing (inc-pc after-read) op)
-          current-cycles (:total-cycles cpu)]
-      (assoc after-op :total-cycles (+ cycles current-cycles)))))
+    (execute-with-timing (inc-pc after-read) op)))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 

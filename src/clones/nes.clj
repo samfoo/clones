@@ -1,5 +1,4 @@
 (ns clones.nes
-  (:gen-class :main true)
   (:require [clones.cpu         :refer :all]
             [clones.nes.rom     :refer :all]
             [clones.nes.memory  :refer :all]
