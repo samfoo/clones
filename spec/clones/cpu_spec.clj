@@ -13,6 +13,10 @@
 (def cpu-with-overflow (assoc cpu :p overflow-flag))
 
 (describe "The NES's 6502 2A03/7 CPU"
+  (it "should remove any meta on the CPU when executing an op"
+    (let [new-cpu ((:nop ops) (with-meta cpu {:meta 1}) :implied)]
+      (should-not (contains? (meta new-cpu) :meta))))
+
   (describe "instruction set"
     (defn check-zero-flag-sets [c]
       (it "should set the zero flag when the result is zero"
