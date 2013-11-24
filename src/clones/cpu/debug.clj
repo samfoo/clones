@@ -23,12 +23,13 @@
               (io-debug-> cpu (io-read (+ 2 (:pc cpu)))))))
 
 (defn debug-cpu-state [cpu]
-  (format "A:%02X X:%02X Y:%02X P:%02X SP:%02X"
+  (format "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d"
           (:a cpu)
           (:x cpu)
           (:y cpu)
           (:p cpu)
-          (:sp cpu)))
+          (:sp cpu)
+          (mod (* 3 (:total-cycles cpu)) 341)))
 
 (defn debug-address-mode [cpu mode op-name]
   (let [arg (op-code-arg cpu mode)

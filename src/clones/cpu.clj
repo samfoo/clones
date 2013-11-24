@@ -14,6 +14,7 @@
                 ^int sp
                 ^int p
                 ^int pc
+                ^int total-cycles
                 memory])
 
 (defmacro defop [op-name opcodes action]
@@ -32,7 +33,7 @@
                  op-codes
                  (partition 3 ~opcodes))))))
 
-(defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 bus))
+(defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 0 bus))
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (inc (:pc cpu))))
@@ -58,7 +59,9 @@
     (if (nil? op)
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
       nil)
-    (execute (inc-pc after-read) op)))
+    (let [[cycles after-op] (execute-with-timing (inc-pc after-read) op)
+          current-cycles (:total-cycles cpu)]
+      (assoc after-op :total-cycles (+ cycles current-cycles)))))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 
@@ -85,14 +88,27 @@
       (assoc cpu :p (bit-or flags flag))
       (assoc cpu :p (bit-and flags (bit-not flag))))))
 
-(defn- cycles-page-crossed-penalty [cpu address-mode penalty]
+(defn- different-pages? [a1 a2]
+  (not= (bit-and 0xff00 a1) (bit-and 0xff00 a2)))
+
+(defn- cycles-page-crossed-penalty-abs-reg [cpu address-mode penalty]
   (let [abs-addr (first (io-> cpu (absolute)))
-        indexed-addr (first (io-> cpu (address-mode)))
-        abs-page (bit-and 0xff00 abs-addr)
-        indexed-page (bit-and 0xff00 indexed-addr)]
-    (if (not= abs-page indexed-page)
+        abs-addr-w-reg (first (io-> cpu (address-mode)))]
+    (if (different-pages? abs-addr abs-addr-w-reg)
       penalty
       0)))
+
+(defn- cycles-page-crossed-penalty-ind-idx [cpu address-mode penalty]
+  (let [i-addr (first (io-> cpu (indirect-indexed-addr)))
+        i-addr-w-reg (first (io-> cpu (indirect-indexed)))]
+    (if (different-pages? i-addr i-addr-w-reg)
+      penalty
+      0)))
+
+(defn- cycles-page-crossed-penalty [cpu address-mode penalty]
+  (if (= indirect-indexed address-mode)
+    (cycles-page-crossed-penalty-ind-idx cpu address-mode penalty)
+    (cycles-page-crossed-penalty-abs-reg cpu address-mode penalty)))
 
 (defn- cycles [base & r]
   (fn [before-cpu after-cpu address-mode]
@@ -103,9 +119,8 @@
       (+ base page-cross-penalty))))
 
 (defn- cycles-branched-instr [before-cpu after-cpu c]
-  (let [before-page (bit-and 0xff00 (:pc before-cpu))
-        after-page (bit-and 0xff00 (:pc after-cpu))]
-    (if (not= before-page after-page)
+  (let [pc-after-branch-instr (unsigned-word (+ 2 (:pc before-cpu)))]
+    (if (different-pages? pc-after-branch-instr (:pc after-cpu))
       (+ c 2)
       (+ c 1))))
 

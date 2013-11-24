@@ -49,6 +49,15 @@
         (let [op (get op-codes op-code)
               n (:name (meta op))]
           (describe (format "$%02x (%s)" op-code n)
+            (it (str "shouldn't count as crossing a page unless the "
+                     "instruction that would be after the branch op is on a "
+                     "different page that where the branch ended up")
+              (let [on-page-boundary (assoc branch-cpu :pc 0xff)
+                    will-branch (second (io-> on-page-boundary
+                                              (io-write 0xff 0x10)))
+                    [cycles _] (execute-with-timing will-branch op)]
+                (should= 3 cycles)))
+
             (it "should take 4 cycles when branching to a new page"
               (let [will-cross (second (io-> branch-cpu
                                              (io-write 0x90 0)))

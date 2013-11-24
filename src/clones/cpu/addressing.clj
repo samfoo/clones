@@ -65,14 +65,17 @@
               low (io-read (unsigned-byte (+ pointer (:x cpu))))]
              (bit-or (bit-shift-left high 8) low)))
 
-(defn indirect-indexed []
+(defn indirect-indexed-addr []
   (with-io-> [cpu (fetch-state)
               pointer (io-read (:pc cpu))
               high (io-read (unsigned-byte (+ pointer 1)))
               low (io-read (unsigned-byte pointer))]
-             (unsigned-word (+
-                              (bit-or (bit-shift-left high 8) low)
-                              (:y cpu)))))
+    (bit-or (bit-shift-left high 8) low)))
+
+(defn indirect-indexed []
+  (with-io-> [cpu (fetch-state)
+              ind-addr (indirect-indexed-addr)]
+             (unsigned-word (+ ind-addr (:y cpu)))))
 
 (defn mode-by-name [n]
   (n {:zero-page zero-page
