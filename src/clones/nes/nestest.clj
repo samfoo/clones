@@ -49,10 +49,11 @@
     (map #(str "                " %) context)))
 
 (defn -main [& args]
-  (let [machine (init-nes "assets/nestest.nes")]
+  (let [machine (init-nes "assets/nestest.nes")
+        cpu (assoc (:cpu machine) :pc 0xc000)]
     (doseq [[expected actual line] (map vector
                                         (read-nintendulator-log "assets/nestest.log")
-                                        (lazy-debug (assoc machine :pc 0xc000))
+                                        (lazy-debug cpu)
                                         (range))]
       (if (not= expected actual)
         (let [[e a] (pretty-diff expected actual)]

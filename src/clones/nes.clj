@@ -5,15 +5,29 @@
             [clones.cpu.debug   :refer :all]
             [clones.cpu.memory  :refer :all]))
 
+(defrecord NES [cpu
+                ppu
+                apu
+                mapper])
+
+(defn system-step [nes]
+  (let [[cpu-cycles new-cpu] (cpu-step (:cpu nes))]
+    (assoc nes :cpu new-cpu)))
+
+(defn- make-nes [cpu ppu apu mapper]
+  (NES. cpu ppu apu mapper))
+
 (defn init-nes [rom-file]
   (let [rom (read-rom rom-file)
         mapper (make-mapper rom)
-        cpu (make-cpu (make-memory {} {0x04 0xff
-                                       0x05 0xff
-                                       0x06 0xff
-                                       0x07 0xff
-                                       0x15 0xff} mapper))
+        ppu {}
+        apu {0x04 0xff
+             0x05 0xff
+             0x06 0xff
+             0x07 0xff
+             0x15 0xff}
+        cpu (make-cpu (make-memory ppu apu mapper))
         [reset-vector _] (io-> cpu (io-read-word 0xfffc))
         cpu-ready (assoc cpu :pc reset-vector)]
-    cpu-ready))
+    (make-nes cpu-ready ppu apu mapper)))
 
