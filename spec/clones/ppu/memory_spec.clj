@@ -33,13 +33,13 @@
 
     (it "should mirror to $2xxx when reading from $3xxx"
       (let [bus-with-value (assoc bus
-                                  :name-tables
+                                  :nametables
                                   {0 0xff})]
         (should= 0xff (first (device-read bus-with-value 0x3000)))))
 
     (it "should read from the name tables relative to $2000"
       (let [bus-with-value (assoc bus
-                                  :name-tables
+                                  :nametables
                                   {0 0xff})]
         (should= 0xff (first (device-read bus-with-value 0x2000))))))
 

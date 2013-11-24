@@ -15,13 +15,13 @@
 (defn- bus-write-pattern-tables [bus v addr]
   (bus-write-device bus :pattern-tables v addr))
 
-(defn- bus-read-name-tables [bus addr]
+(defn- bus-read-nametables [bus addr]
   (let [relative-addr (bit-and 0xfff addr)]
-    (bus-read-device bus :name-tables relative-addr)))
+    (bus-read-device bus :nametables relative-addr)))
 
-(defn- bus-write-name-tables [bus v addr]
+(defn- bus-write-nametables [bus v addr]
   (let [relative-addr (bit-and 0xfff addr)]
-    (bus-write-device bus :name-tables v relative-addr)))
+    (bus-write-device bus :nametables v relative-addr)))
 
 (defn- bus-read-palette-ram [bus addr]
   (let [relative-addr (bit-and 0x1f addr)]
@@ -34,21 +34,21 @@
 (defn- bus-read [bus addr]
   (cond
     (< addr 0x2000) (bus-read-pattern-tables bus addr)
-    (< addr 0x3eff) (bus-read-name-tables bus addr)
+    (< addr 0x3eff) (bus-read-nametables bus addr)
     :else           (bus-read-palette-ram bus addr)))
 
 (defn- bus-write [bus v addr]
   (cond
     (< addr 0x2000) (bus-write-pattern-tables bus v addr)
-    (< addr 0x3eff) (bus-write-name-tables bus v addr)
+    (< addr 0x3eff) (bus-write-nametables bus v addr)
     :else           (bus-write-palette-ram bus v addr)))
 
 (defrecord Bus [pattern-tables
-                name-tables
+                nametables
                 palette-ram]
   Device
   (device-read [this addr] (bus-read this addr))
   (device-write [this v addr] (bus-write this v addr)))
 
-(defn make-memory [pattern-tables name-tables]
-  (Bus. pattern-tables name-tables {}))
+(defn make-memory [pattern-tables nametables]
+  (Bus. pattern-tables nametables {}))
