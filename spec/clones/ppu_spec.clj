@@ -7,11 +7,59 @@
 (def ppu-latch-off (assoc ppu :write-latch? false))
 
 (describe "The NES's 2C02 PPU"
-  (describe "memory mapped register I/O"
-    ;; NOTE: Remember that all devices are mounted to the memory bus, but that
-    ;; device IO is relative. So the absolute read of $2000 would read $0000 on
-    ;; the PPU
+  (describe "ppu-step"
+    (let [ppu (assoc ppu :tick 340)]
+      (describe "when the tick is 340"
+        (it "should increment the scanline by 1 when it's less than 260"
+          (let [ppu-w-scanline (assoc ppu :scanline -1)]
+            (should= 0 (:scanline (ppu-step ppu-w-scanline)))))
 
+        (it "should reset the scanline to -1 if it's 260"
+          (let [ppu-w-scanline (assoc ppu :scanline 260)]
+            (should= -1 (:scanline (ppu-step ppu-w-scanline)))))
+
+        (it "should reset the tick to 0"
+          (should= 0 (:tick (ppu-step ppu))))))
+
+    (it "should increment the tick by 1 when it's less than 340"
+      (should= 1 (:tick (ppu-step ppu))))
+
+    (describe "the post-render scanline +1 (240)"
+      (describe "tick 1"
+        (it "should set the vblank started flag"
+          (let [ppu-wo-vblank-started (merge ppu {:vblank-started? false
+                                                  :scanline 240
+                                                  :tick 1})
+                new-ppu (ppu-step ppu-wo-vblank-started)]
+            (should (:vblank-started? new-ppu))))))
+
+    (describe "the visible scanlines (0-239)"
+      (xit "should do something"))
+
+    (describe "the pre-render scanline (-1)"
+      (describe "tick 1"
+        (it "should clear the vblank started flag"
+          (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
+                                                 :scanline -1
+                                                 :tick 1})
+                new-ppu (ppu-step ppu-w-vblank-started)]
+            (should-not (:vblank-started? new-ppu))))
+
+        (it "should clear the sprite overflow flag"
+          (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
+                                                  :scanline -1
+                                                  :tick 1})
+                new-ppu (ppu-step ppu-w-sprite-overflow)]
+            (should-not (:sprite-overflow? new-ppu))))
+
+        (it "should clear the sprite 0 hit flag"
+          (let [ppu-w-sprite-0 (merge ppu {:sprite-0-hit? true
+                                           :scanline -1
+                                           :tick 1})
+                new-ppu (ppu-step ppu-w-sprite-0)]
+            (should-not (:sprite-0-hit? new-ppu)))))))
+
+  (describe "memory mapped register I/O"
     (describe "make-ppu"
       (it "should have the write latch set initially"
         (should (:write-latch? (make-ppu {})))))

@@ -169,6 +169,9 @@
    ^int vram-addr
    ^int vram-data-buffer
 
+   ^int scanline
+   ^int tick
+
    memory]
 
   Device
@@ -186,4 +189,37 @@
         false false false true
         0 init-oam-ram
         0 0 0 0
+        -1 0
         bus))
+
+(defn- step-pre-render-scanline [ppu]
+  (if (= 1 (:tick ppu))
+    (merge ppu {:sprite-0-hit? false
+                :sprite-overflow? false
+                :vblank-started? false})
+    ppu))
+
+(defn- step-post-render-scanline [ppu]
+  (if (= 1 (:tick ppu))
+    (assoc ppu :vblank-started? true)
+    ppu))
+
+(defn- advance-ppu [ppu]
+  (let [scanline (:scanline ppu)
+        tick (:tick ppu)]
+    (if (= 340 tick)
+      (merge ppu {:tick 0
+                  :scanline (if (= 260 scanline)
+                              -1
+                              (inc scanline))})
+      (assoc ppu :tick (inc tick)))))
+
+(defn ppu-step [ppu]
+  (let [scanline (:scanline ppu)
+        tick (:tick ppu)
+        new-ppu (cond
+                  (= -1 scanline) (step-pre-render-scanline ppu)
+                  (= 240 scanline) (step-post-render-scanline ppu)
+                  :else ppu)]
+    (advance-ppu new-ppu)))
+
