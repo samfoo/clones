@@ -10,7 +10,7 @@
 (defn- await-test-start [nes]
   (if (= 0x80 (io-debug-> nes (io-read 0x6000)))
     nes
-    (recur (second (step nes)))))
+    (recur (second (cpu-step nes)))))
 
 (defn- read-null-term-str-from [nes addr]
   (let [b (io-debug-> nes (io-read addr))
@@ -27,7 +27,7 @@
 (defn- await-test-finish [nes i]
   (let [status (io-debug-> nes (io-read 0x6000))]
     (if (= status 0x80)
-      (recur (second (step nes)) (inc i))
+      (recur (second (cpu-step nes)) (inc i))
       nes)))
 
 (defn -main [& args]

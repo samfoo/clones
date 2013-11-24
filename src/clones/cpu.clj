@@ -48,7 +48,7 @@
                    (:pc cpu)
                    (mode-size mode))))
 
-(defn step [cpu]
+(defn cpu-step [cpu]
   (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (get op-codes op-code)]
     (if (nil? op)

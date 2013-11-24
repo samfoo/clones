@@ -13,7 +13,7 @@
     (cons
       (format "%s CYC:%3d" (debug-step nes) cycles)
       (lazy-seq
-        (let [[cs new-nes] (step nes)]
+        (let [[cs new-nes] (cpu-step nes)]
           (lazy-debug-w-cycles new-nes (+ total-cycles cs)))))))
 
 
