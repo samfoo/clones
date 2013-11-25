@@ -209,6 +209,35 @@
     (assoc ppu :vblank-started? true)
     ppu))
 
+(defn- inc-coarse-y [ppu]
+  (let [;; Get the vram addr with the fine y cleared to 0
+        vram-addr (bit-and (:vram-addr ppu) 0xfff)
+        old-coarse-y (bit-shift-right (bit-and vram-addr 0x03e0) 5)]
+    (if (= 29 old-coarse-y)
+      (let [new-vram-addr (-> vram-addr
+                            (bit-and 0xfc1f)
+                            (bit-xor 0x800))]
+        (assoc ppu :vram-addr new-vram-addr))
+
+      (let [new-coarse-y (bit-and 0x1f (inc old-coarse-y))
+            new-vram-addr (-> vram-addr
+                            (bit-and 0xfc1f)
+                            (bit-or (bit-shift-left new-coarse-y 5)))]
+        (assoc ppu :vram-addr new-vram-addr)))))
+
+(defn- inc-fine-y [ppu]
+  (let [vram-addr (:vram-addr ppu)
+        fine-y-overflow? (= 0x7000 (bit-and vram-addr 0x7000))]
+    (if fine-y-overflow?
+      (inc-coarse-y ppu)
+      (let [new-vram-addr (+ vram-addr 0x1000)]
+        (assoc ppu :vram-addr new-vram-addr)))))
+
+(defn- step-visible-scanline [ppu]
+  (if (= 256 (:tick ppu))
+    (inc-fine-y ppu)
+    ppu))
+
 (defn- advance-ppu [ppu]
   (let [scanline (:scanline ppu)
         tick (:tick ppu)]
@@ -224,6 +253,11 @@
         tick (:tick ppu)
         new-ppu (cond
                   (= -1 scanline) (step-pre-render-scanline ppu)
+
+                  (and
+                    (> scanline -1)
+                    (< scanline 240)) (step-visible-scanline ppu)
+
                   (= 240 scanline) (step-post-render-scanline ppu)
                   :else ppu)]
     (advance-ppu new-ppu)))

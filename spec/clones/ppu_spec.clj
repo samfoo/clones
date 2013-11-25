@@ -34,7 +34,37 @@
             (should (:vblank-started? new-ppu))))))
 
     (describe "the visible scanlines (0-239)"
-      (xit "should do something"))
+      (describe "tick 256"
+        (it (str "should set coarse Y to 0 but not switch vertical nametables "
+                 " when coarse Y is equal to 31")
+          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
+                                                   :tick 256
+                                                   :vram-addr 0x73e0})
+                new-ppu (ppu-step ppu-at-end-of-scanline)]
+            (should= 0 (:vram-addr new-ppu))))
+
+        (it (str "should set coarse Y to 0 and switch vertical nametables "
+                 "when coarse Y is equal to 29")
+          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
+                                                   :tick 256
+                                                   :vram-addr 0x73a0})
+                new-ppu (ppu-step ppu-at-end-of-scanline)]
+            (should= 0x800 (:vram-addr new-ppu))))
+
+        (it (str "should set fine Y to 0 and increment coarse Y when "
+                 "fine Y is equal to 7")
+          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
+                                                   :tick 256
+                                                   :vram-addr 0x7000})
+                new-ppu (ppu-step ppu-at-end-of-scanline)]
+            (should= 0x20 (:vram-addr new-ppu))))
+
+        (it "should increment fine Y by 1 when it's < 7"
+          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
+                                                   :tick 256
+                                                   :vram-addr 0x1000})
+                new-ppu (ppu-step ppu-at-end-of-scanline)]
+            (should= 0x2000 (:vram-addr new-ppu))))))
 
     (describe "the pre-render scanline (-1)"
       (describe "tick 1"
