@@ -308,6 +308,10 @@
         (check-mask 1 :grayscale?)))
 
     (describe "writing to the control register at $2000"
+      (it "should set bits 10 and 11 in the vram latch to the value at bits 0 and 1"
+        (let [with-vram-latch (second (device-write ppu 3 0))]
+          (should= 0xc00 (:vram-latch with-vram-latch))))
+
       (it "should turn on/off NMI on vertical blank based on the value at bit 7"
         (let [on (second (device-write ppu 0x80 0))
               off (second (device-write ppu 0 0))]

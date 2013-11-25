@@ -3,13 +3,18 @@
             [clones.byte   :refer :all]))
 
 (defn control-write [ppu v]
-  (merge ppu {:control                 v
-              :base-nametable-addr     (bit-and 3 v)
-              :vram-addr-inc           (bit-and 1 (bit-shift-right v 2))
-              :sprite-pattern-addr     (bit-and 1 (bit-shift-right v 3))
-              :background-pattern-addr (bit-and 1 (bit-shift-right v 4))
-              :sprite-size             (bit-and 1 (bit-shift-right v 5))
-              :nmi-on-vblank?          (bit-set? v 7)}))
+  (let [vram-latch (bit-and (:vram-latch ppu) 0xf3ff)
+        base-nametable (bit-and 3 v)]
+    (merge ppu {:control                 v
+                :vram-latch              (bit-or
+                                           (bit-shift-left base-nametable 10)
+                                           vram-latch)
+                :base-nametable-addr     base-nametable
+                :vram-addr-inc           (bit-and 1 (bit-shift-right v 2))
+                :sprite-pattern-addr     (bit-and 1 (bit-shift-right v 3))
+                :background-pattern-addr (bit-and 1 (bit-shift-right v 4))
+                :sprite-size             (bit-and 1 (bit-shift-right v 5))
+                :nmi-on-vblank?          (bit-set? v 7)})))
 
 (defn mask-write [ppu v]
   (merge ppu {:mask                     v
