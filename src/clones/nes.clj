@@ -11,8 +11,8 @@
                 mapper])
 
 (defn system-step [nes]
-  (let [[cpu-cycles new-cpu] (cpu-step (:cpu nes))]
-    (assoc nes :cpu new-cpu)))
+  (let [[cpu-cycles new-machine] (cpu-step nes)]
+    new-machine))
 
 (defn- make-nes [cpu ppu apu mapper]
   (NES. cpu ppu apu mapper))

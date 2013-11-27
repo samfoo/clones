@@ -48,13 +48,15 @@
                    (:pc cpu)
                    (mode-size mode))))
 
-(defn cpu-step [cpu]
-  (let [[op-code after-read] (io-> cpu (io-read (:pc cpu)))
+(defn cpu-step [machine]
+  (let [cpu (:cpu machine)
+        [op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (get op-codes op-code)]
     (if (nil? op)
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
       nil)
-    (execute-with-timing (inc-pc after-read) op)))
+    (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
+      [cs (assoc machine :cpu after-op)])))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 

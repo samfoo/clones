@@ -11,11 +11,10 @@
 (defn- lazy-debug-w-cycles [nes total-cycles]
   (let [cycles (mod (* 3 total-cycles) 341)]
     (cons
-      (format "%s CYC:%3d" (debug-step nes) cycles)
+      (format "%s CYC:%3d" (debug-step (:cpu nes)) cycles)
       (lazy-seq
         (let [[cs new-nes] (cpu-step nes)]
           (lazy-debug-w-cycles new-nes (+ total-cycles cs)))))))
-
 
 (defn- lazy-debug [nes]
   (lazy-debug-w-cycles nes 0))
@@ -50,10 +49,11 @@
 
 (defn -main [& args]
   (let [machine (init-nes "assets/nestest.nes")
-        cpu (assoc (:cpu machine) :pc 0xc000)]
+        cpu (assoc (:cpu machine) :pc 0xc000)
+        machine (assoc machine :cpu cpu)]
     (doseq [[expected actual line] (map vector
                                         (read-nintendulator-log "assets/nestest.log")
-                                        (lazy-debug cpu)
+                                        (lazy-debug machine)
                                         (range))]
       (if (not= expected actual)
         (let [[e a] (pretty-diff expected actual)]
