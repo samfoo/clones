@@ -8,21 +8,26 @@
 
 (describe "The NES's 2C02 PPU"
   (describe "ppu-step"
+    (defn ppu-step-debug [machine]
+      (:ppu (ppu-step machine)))
+
     (let [ppu (assoc ppu :tick 340)]
       (describe "when the tick is 340"
         (it "should increment the scanline by 1 when it's less than 260"
-          (let [ppu-w-scanline (assoc ppu :scanline -1)]
-            (should= 0 (:scanline (ppu-step ppu-w-scanline)))))
+          (let [ppu-w-scanline (assoc ppu :scanline -1)
+                machine {:ppu ppu-w-scanline}]
+            (should= 0 (:scanline (ppu-step-debug machine)))))
 
         (it "should reset the scanline to -1 if it's 260"
-          (let [ppu-w-scanline (assoc ppu :scanline 260)]
-            (should= -1 (:scanline (ppu-step ppu-w-scanline)))))
+          (let [ppu-w-scanline (assoc ppu :scanline 260)
+                machine {:ppu ppu-w-scanline}]
+            (should= -1 (:scanline (ppu-step-debug machine)))))
 
         (it "should reset the tick to 0"
-          (should= 0 (:tick (ppu-step ppu))))))
+          (should= 0 (:tick (ppu-step-debug {:ppu ppu}))))))
 
     (it "should increment the tick by 1 when it's less than 340"
-      (should= 1 (:tick (ppu-step ppu))))
+      (should= 1 (:tick (ppu-step-debug {:ppu ppu}))))
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
@@ -35,7 +40,8 @@
                                               :scanline 240
                                               :tick 1
                                               :suppress-vblank? true})
-                  new-ppu (ppu-step ppu-suppressing)]
+                  machine {:ppu ppu-suppressing}
+                  new-ppu (ppu-step-debug machine)]
               (should-not (:suppress-vblank? new-ppu))))
 
           (it "should not set the vblank started flag"
@@ -43,14 +49,16 @@
                                               :scanline 240
                                               :tick 1
                                               :suppress-vblank? true})
-                  new-ppu (ppu-step ppu-suppressing)]
+                  machine {:ppu ppu-suppressing}
+                  new-ppu (ppu-step-debug machine)]
               (should-not (:vblank-started? new-ppu)))))
 
         (it "should set the vblank started flag"
           (let [ppu-wo-vblank-started (merge ppu {:vblank-started? false
                                                   :scanline 240
                                                   :tick 1})
-                new-ppu (ppu-step ppu-wo-vblank-started)]
+                machine {:ppu ppu-wo-vblank-started}
+                new-ppu (ppu-step-debug machine)]
             (should (:vblank-started? new-ppu))))))
 
     (describe "the visible scanlines (0-239)"
@@ -60,7 +68,8 @@
           (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
                                                    :tick 256
                                                    :vram-addr 0x73e0})
-                new-ppu (ppu-step ppu-at-end-of-scanline)]
+                machine {:ppu ppu-at-end-of-scanline}
+                new-ppu (ppu-step-debug machine)]
             (should= 0 (:vram-addr new-ppu))))
 
         (it (str "should set coarse Y to 0 and switch vertical nametables "
@@ -68,7 +77,8 @@
           (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
                                                    :tick 256
                                                    :vram-addr 0x73a0})
-                new-ppu (ppu-step ppu-at-end-of-scanline)]
+                machine {:ppu ppu-at-end-of-scanline}
+                new-ppu (ppu-step-debug machine)]
             (should= 0x800 (:vram-addr new-ppu))))
 
         (it (str "should set fine Y to 0 and increment coarse Y when "
@@ -76,14 +86,16 @@
           (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
                                                    :tick 256
                                                    :vram-addr 0x7000})
-                new-ppu (ppu-step ppu-at-end-of-scanline)]
+                machine {:ppu ppu-at-end-of-scanline}
+                new-ppu (ppu-step-debug machine)]
             (should= 0x20 (:vram-addr new-ppu))))
 
         (it "should increment fine Y by 1 when it's < 7"
           (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
                                                    :tick 256
                                                    :vram-addr 0x1000})
-                new-ppu (ppu-step ppu-at-end-of-scanline)]
+                machine {:ppu ppu-at-end-of-scanline}
+                new-ppu (ppu-step-debug machine)]
             (should= 0x2000 (:vram-addr new-ppu))))))
 
     (describe "the pre-render scanline (-1)"
@@ -92,21 +104,24 @@
           (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
                                                  :scanline -1
                                                  :tick 1})
-                new-ppu (ppu-step ppu-w-vblank-started)]
+                machine {:ppu ppu-w-vblank-started}
+                new-ppu (ppu-step-debug machine)]
             (should-not (:vblank-started? new-ppu))))
 
         (it "should clear the sprite overflow flag"
           (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
                                                   :scanline -1
                                                   :tick 1})
-                new-ppu (ppu-step ppu-w-sprite-overflow)]
+                machine {:ppu ppu-w-sprite-overflow}
+                new-ppu (ppu-step-debug machine)]
             (should-not (:sprite-overflow? new-ppu))))
 
         (it "should clear the sprite 0 hit flag"
           (let [ppu-w-sprite-0 (merge ppu {:sprite-0-hit? true
                                            :scanline -1
                                            :tick 1})
-                new-ppu (ppu-step ppu-w-sprite-0)]
+                machine {:ppu ppu-w-sprite-0}
+                new-ppu (ppu-step-debug machine)]
             (should-not (:sprite-0-hit? new-ppu)))))))
 
   (describe "memory mapped register I/O"

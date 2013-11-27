@@ -261,8 +261,9 @@
                               (inc scanline))})
       (assoc ppu :tick (inc tick)))))
 
-(defn ppu-step [ppu]
-  (let [scanline (:scanline ppu)
+(defn ppu-step [machine]
+  (let [ppu (:ppu machine)
+        scanline (:scanline ppu)
         tick (:tick ppu)
         new-ppu (cond
                   (= -1 scanline) (step-pre-render-scanline ppu)
@@ -273,5 +274,5 @@
 
                   (= 240 scanline) (step-post-render-scanline ppu)
                   :else ppu)]
-    (advance-ppu new-ppu)))
+    (assoc machine :ppu (advance-ppu new-ppu))))
 
