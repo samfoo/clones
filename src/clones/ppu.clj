@@ -120,11 +120,21 @@
    ppu])
 
 (defn status-read [ppu]
-  [(-> 0
-     (bit-or (if (:vblank-started? ppu) 0x80 0))
-     (bit-or (if (:sprite-0-hit? ppu) 0x40 0))
-     (bit-or (if (:sprite-overflow? ppu) 0x20 0)))
-   (assoc ppu :write-latch? true)])
+  (let [at-vblank-tick? (and
+                          (= 1 (:tick ppu))
+                          (= 240 (:scanline ppu)))
+        vblank-started? (if at-vblank-tick?
+                          false
+                          (:vblank-started? ppu))
+        status (-> 0
+                 (bit-or (if vblank-started? 0x80 0))
+                 (bit-or (if (:sprite-0-hit? ppu) 0x40 0))
+                 (bit-or (if (:sprite-overflow? ppu) 0x20 0)))
+        changes {:write-latch? true
+                 :vblank-started? false
+                 :suppress-vblank? at-vblank-tick?
+                 :suppress-nmi? at-vblank-tick?}]
+    [status (merge ppu changes)]))
 
 (defn register-write [ppu v addr]
   [v (condp = addr
@@ -206,7 +216,10 @@
 
 (defn- step-post-render-scanline [ppu]
   (if (= 1 (:tick ppu))
-    (assoc ppu :vblank-started? true)
+    (-> ppu
+      (assoc :vblank-started? (not (:suppress-vblank? ppu)))
+      (merge {:suppress-vblank? false
+              :suppress-nmi? false}))
     ppu))
 
 (defn- inc-coarse-y [ppu]

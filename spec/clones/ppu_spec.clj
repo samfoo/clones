@@ -26,6 +26,26 @@
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
+        (describe "when NMI on vblank control is turned on"
+          (xit "should request an NMI"))
+
+        (describe "when suppressing vblank"
+          (it "should unsuppress vblank after having suppressed it"
+            (let [ppu-suppressing (merge ppu {:vblank-started? false
+                                              :scanline 240
+                                              :tick 1
+                                              :suppress-vblank? true})
+                  new-ppu (ppu-step ppu-suppressing)]
+              (should-not (:suppress-vblank? new-ppu))))
+
+          (it "should not set the vblank started flag"
+            (let [ppu-suppressing (merge ppu {:vblank-started? false
+                                              :scanline 240
+                                              :tick 1
+                                              :suppress-vblank? true})
+                  new-ppu (ppu-step ppu-suppressing)]
+              (should-not (:vblank-started? new-ppu)))))
+
         (it "should set the vblank started flag"
           (let [ppu-wo-vblank-started (merge ppu {:vblank-started? false
                                                   :scanline 240
@@ -269,16 +289,42 @@
           (should= 0xff (:oam-addr new-ppu)))))
 
     (describe "reading the status register at $2002"
-      ;; TODO: Suppress NMI and suppress vblank states
+      (it "should return vblank is not started when at tick 1 of scanline 240"
+        (let [ppu-right-before-vbl (merge ppu {:tick 1
+                                               :scanline 240
+                                               :vblank-started? true})
+              status (first (device-read ppu-right-before-vbl 2))]
+          (should= 0 (bit-and status 0x80))))
+
+      (it "should not suppress vblank and NMI when not at tick 1 of scanline 240"
+        (let [ppu-right-before-vbl (merge ppu {:tick 1
+                                               :scanline 1
+                                               :suppress-vblank? true
+                                               :suppress-nmi? true})
+              new-ppu (second (device-read ppu-right-before-vbl 2))]
+          (should-not (:suppress-vblank? new-ppu))
+          (should-not (:suppress-nmi? new-ppu))))
+
+      (it "should suppress vblank and NMI when at tick 1 of scanline 240"
+        (let [ppu-right-before-vbl (merge ppu {:tick 1
+                                               :scanline 240})
+              new-ppu (second (device-read ppu-right-before-vbl 2))]
+          (should (:suppress-vblank? new-ppu))
+          (should (:suppress-nmi? new-ppu))))
 
       (it "should set the write latch to true"
         (let [ppu-w-latch-false (assoc ppu :write-latch? false)
               new-ppu (second (device-read ppu-w-latch-false 2))]
           (should (:write-latch? new-ppu))))
 
+      (it "should clear vblank started"
+        (let [ppu-w-vbl (assoc ppu :vblank-started? true)
+              ppu-wo-vbl (second (device-read ppu-w-vbl 2))]
+          (should-not (:vblank-started? ppu-wo-vbl))))
+
       (it "should have bit 7 unset if vblank hasn't started"
-        (let [ppu-w-vbl (assoc ppu :vblank-started? false)]
-          (should= 0 (first (device-read ppu-w-vbl 2)))))
+        (let [ppu-wo-vbl (assoc ppu :vblank-started? false)]
+          (should= 0 (first (device-read ppu-wo-vbl 2)))))
 
       (it "should have bit 7 set if vblank has started"
         (let [ppu-w-vbl (assoc ppu :vblank-started? true)]
