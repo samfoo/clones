@@ -2,9 +2,10 @@
   (:require [clones.cpu         :refer :all]
             [clones.ppu         :refer :all]
             [clones.nes.rom     :refer :all]
-            [clones.nes.memory  :refer :all]
             [clones.cpu.debug   :refer :all]
-            [clones.cpu.memory  :refer :all]))
+            [clones.cpu.memory  :refer :all])
+  (:use [clones.nes.memory :only [make-main-memory]]
+        [clones.ppu.memory :only [make-ppu-memory]]))
 
 (defrecord NES [cpu
                 ppu
@@ -22,7 +23,7 @@
 (defn init-nes [rom-file]
   (let [rom (read-rom rom-file)
         mapper (make-mapper rom)
-        ppu {}
+        ppu (make-ppu (make-ppu-memory mapper))
         apu {0x04 0xff
              0x05 0xff
              0x06 0xff
