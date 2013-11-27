@@ -31,8 +31,23 @@
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
+        (describe "when NMI on vblank control is turned off"
+          (it "should not request an NMI"
+            (let [machine {:ppu (merge ppu {:tick 1
+                                            :nmi-on-vblank? false
+                                            :scanline 240})
+                           :interrupt-requests #{}}
+                  new-machine (ppu-step machine)]
+              (should-not (contains? (:interrupt-requests new-machine) :nmi)))))
+
         (describe "when NMI on vblank control is turned on"
-          (xit "should request an NMI"))
+          (it "should request an NMI"
+            (let [machine {:ppu (merge ppu {:tick 1
+                                            :nmi-on-vblank? true
+                                            :scanline 240})
+                           :interrupt-requests #{}}
+                  new-machine (ppu-step machine)]
+              (should (contains? (:interrupt-requests new-machine) :nmi)))))
 
         (describe "when suppressing vblank"
           (it "should unsuppress vblank after having suppressed it"

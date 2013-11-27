@@ -8,14 +8,15 @@
 (defrecord NES [cpu
                 ppu
                 apu
-                mapper])
+                mapper
+                interrupt-requests])
 
 (defn system-step [nes]
   (let [[cpu-cycles new-machine] (cpu-step nes)]
     new-machine))
 
 (defn- make-nes [cpu ppu apu mapper]
-  (NES. cpu ppu apu mapper))
+  (NES. cpu ppu apu mapper #{}))
 
 (defn init-nes [rom-file]
   (let [rom (read-rom rom-file)

@@ -56,7 +56,8 @@
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
       nil)
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
-      [cs (assoc machine :cpu after-op)])))
+      [cs (merge machine {:cpu after-op
+                          :ppu (:ppu (:memory after-op))})])))
 
 (defn negative? [b] (== 0x80 (bit-and b 0x80)))
 

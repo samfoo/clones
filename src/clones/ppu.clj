@@ -207,20 +207,31 @@
         -1 0
         bus))
 
-(defn- step-pre-render-scanline [ppu]
-  (if (= 1 (:tick ppu))
-    (merge ppu {:sprite-0-hit? false
-                :sprite-overflow? false
-                :vblank-started? false})
-    ppu))
+(defn- step-pre-render-scanline [machine]
+  (let [ppu (:ppu machine)]
+    (if (= 1 (:tick ppu))
+      (assoc machine :ppu
+             (merge ppu {:sprite-0-hit? false
+                         :sprite-overflow? false
+                         :vblank-started? false}))
+      machine)))
 
-(defn- step-post-render-scanline [ppu]
-  (if (= 1 (:tick ppu))
-    (-> ppu
-      (assoc :vblank-started? (not (:suppress-vblank? ppu)))
-      (merge {:suppress-vblank? false
-              :suppress-nmi? false}))
-    ppu))
+(defn- step-post-render-scanline [machine]
+  (let [ppu (:ppu machine)]
+    (if (= 1 (:tick ppu))
+      (let [request-nmi? (and
+                           (:nmi-on-vblank? ppu)
+                           (not (:suppress-nmi? ppu)))
+            ppu-after-vblank (-> ppu
+                               (assoc :vblank-started?
+                                      (not (:suppress-vblank? ppu)))
+                               (merge {:suppress-vblank? false
+                                       :suppress-nmi? false}))
+            irqs (if request-nmi?
+                   (conj (:interrupt-requests machine) :nmi)
+                   (:interrupt-requests machine))]
+        (merge machine {:ppu ppu-after-vblank :interrupt-requests irqs}))
+      machine)))
 
 (defn- inc-coarse-y [ppu]
   (let [;; Get the vram addr with the fine y cleared to 0
@@ -246,12 +257,13 @@
       (let [new-vram-addr (+ vram-addr 0x1000)]
         (assoc ppu :vram-addr new-vram-addr)))))
 
-(defn- step-visible-scanline [ppu]
-  (if (= 256 (:tick ppu))
-    (inc-fine-y ppu)
-    ppu))
+(defn- step-visible-scanline [machine]
+  (let [ppu (:ppu machine)]
+    (if (= 256 (:tick ppu))
+      (assoc machine :ppu (inc-fine-y ppu))
+      machine)))
 
-(defn- advance-ppu [ppu]
+(defn- advance-scanline [ppu]
   (let [scanline (:scanline ppu)
         tick (:tick ppu)]
     (if (= 340 tick)
@@ -265,14 +277,15 @@
   (let [ppu (:ppu machine)
         scanline (:scanline ppu)
         tick (:tick ppu)
-        new-ppu (cond
-                  (= -1 scanline) (step-pre-render-scanline ppu)
+        machine (cond
+                  (= -1 scanline) (step-pre-render-scanline machine)
 
                   (and
                     (> scanline -1)
-                    (< scanline 240)) (step-visible-scanline ppu)
+                    (< scanline 240)) (step-visible-scanline machine)
 
-                  (= 240 scanline) (step-post-render-scanline ppu)
-                  :else ppu)]
-    (assoc machine :ppu (advance-ppu new-ppu))))
+                  (= 240 scanline) (step-post-render-scanline machine)
+                  :else machine)
+        after-advancing (advance-scanline (:ppu machine))]
+    (assoc machine :ppu after-advancing)))
 
