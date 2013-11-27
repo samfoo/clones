@@ -13,9 +13,15 @@
                 mapper
                 interrupt-requests])
 
+(defn- catch-ppu-up [nes cycles]
+  (if (= 0 cycles)
+    nes
+    (recur (ppu-step nes) (dec cycles))))
+
 (defn system-step [nes]
-  (let [[cpu-cycles new-machine] (cpu-step nes)]
-    new-machine))
+  (let [[cpu-cycles after-cpu] (cpu-step nes)
+        after-ppu (catch-ppu-up after-cpu (* 3 cpu-cycles))]
+    after-ppu))
 
 (defn- make-nes [cpu ppu apu mapper]
   (NES. cpu ppu apu mapper #{}))
