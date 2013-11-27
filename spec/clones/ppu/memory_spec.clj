@@ -1,12 +1,22 @@
 (ns clones.ppu.memory-spec
-  (:require [speclj.core       :refer :all]
-            [clones.device     :refer :all]
-            [clones.ppu.memory :refer :all]))
+  (:require [speclj.core        :refer :all]
+            [clones.device      :refer :all]
+            [clones.nes.mappers :refer :all]
+            [clones.ppu.memory  :refer :all]))
 
-(def bus (make-memory {} {}))
+(defrecord MockMapper [prg chr]
+  Mapper
+  (prg-read [this addr] [(get prg addr 0) this])
+  (prg-write [this v addr] [v (assoc this :prg (assoc prg addr v))])
+  (chr-read [this addr] [(get chr addr 0) this])
+  (chr-write [this v addr] [v (assoc this :chr (assoc chr addr v))]))
+
+(defn stub-mapper [prg chr] (MockMapper. prg chr))
+(def bus (make-ppu-memory {:mirroring :horizontal}))
 
 (describe
   "The PPU's memory bus mapped with devices like the pattern tables, nametables, etc"
+  (tags :memory)
 
   (describe "$3f00 0 $3fff"
     (it "should write to palette RAM relative to $3f00"
@@ -45,12 +55,15 @@
 
   (describe "$0000 - $1fff"
     (it "should write to the pattern tables"
-      (let [after-write (second (device-write bus 0xff 0))]
+      (let [bus-with-mapper (assoc bus
+                                   :mapper
+                                   (stub-mapper {} {}))
+            after-write (second (device-write bus-with-mapper 0xff 0))]
         (should= 0xff (first (device-read after-write 0)))))
 
     (it "should read from the pattern tables"
       (let [bus-with-value (assoc bus
-                                  :pattern-tables
-                                  {0 0xff})]
+                                  :mapper
+                                  (stub-mapper {} {0 0xff}))]
         (should= 0xff (first (device-read bus-with-value 0)))))))
 

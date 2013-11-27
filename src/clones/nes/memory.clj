@@ -1,5 +1,6 @@
 (ns clones.nes.memory
-  (:require [clones.device :refer :all]))
+  (:require [clones.device      :refer :all]
+            [clones.nes.mappers :refer :all]))
 
 (defn- bus-read-internal-ram [bus addr]
   (let [mirrored-addr (bit-and 0x7ff addr)]
@@ -36,10 +37,12 @@
     (bus-write-device bus :apu v relative-addr)))
 
 (defn- bus-read-mapper [bus addr]
-  (bus-read-device bus :mapper addr))
+  (let [[v new-device] (prg-read (:mapper bus) addr)]
+    [v (assoc bus :mapper new-device)]))
 
 (defn- bus-write-mapper [bus v addr]
-  (bus-write-device bus :mapper v addr))
+  (let [[_ new-device] (prg-write (:mapper bus) v addr)]
+    [v (assoc bus :mapper new-device)]))
 
 (defn- bus-write-dma-at [bus addr]
   (let [[v after-read] (device-read bus addr)
@@ -77,5 +80,5 @@
   (device-read [this addr] (bus-read this addr))
   (device-write [this v addr] (bus-write this v addr)))
 
-(defn make-memory [ppu apu mapper]
+(defn make-main-memory [ppu apu mapper]
   (Bus. {} ppu apu mapper))

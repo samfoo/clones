@@ -1,10 +1,9 @@
 (ns clones.nes.memory-spec
   (:require [speclj.core         :refer :all]
             [clones.nes.memory   :refer :all]
+            [clones.nes.mappers  :refer :all]
             [clones.device       :refer :all]
             [clojure.algo.monads :refer :all]))
-
-(def bus (make-memory {} {} {}))
 
 (defrecord MockPPU [writes]
   Device
@@ -12,10 +11,21 @@
   (device-write [this v addr]
     [v (MockPPU. (conj writes {addr v}))]))
 
+(defrecord MockMapper [prg chr]
+  Mapper
+  (prg-read [this addr] [(get prg addr 0) this])
+  (prg-write [this v addr] [v (assoc this :prg (assoc prg addr v))])
+  (chr-read [this addr] [(get chr addr 0) this])
+  (chr-write [this v addr] [v (assoc this :chr (assoc chr addr v))]))
+
 (defn dma-ppu [] (MockPPU. []))
+(defn mapper [] (MockMapper. {} {}))
+(defn stub-mapper [prg chr] (MockMapper. prg chr))
+(def bus (make-main-memory {} {} (mapper)))
 
 (describe
   "The NES's memory bus, mapped with devices like APU, PPU, and cartridge"
+  (tags :memory)
 
   (defn should-return-bus-after-reading [addr]
     (it "should return the bus after reading"
@@ -30,8 +40,7 @@
 
     (it "should read from the mapper"
       (let [bus-with-value (assoc bus
-                                  :mapper
-                                  {0x6000 0xbe})]
+                                  :mapper (stub-mapper {0x6000 0xbe} {}))]
         (should= 0xbe (first (device-read bus-with-value 0x6000))))))
 
   (describe "$4014 where the written value is $xx"
@@ -40,7 +49,7 @@
     (it "should read 256 bytes from $xx00 - $xxff and write them to $2014"
       (let [ppu (dma-ppu)
             bus-with-oam (merge bus
-                                {:mapper {0x4400 0x11 0x44ff 0xff}
+                                {:mapper (stub-mapper {0x4400 0x11 0x44ff 0xff} {})
                                  :ppu ppu})
             [_ after-dma] (device-write bus-with-oam 0x44 0x4014)]
         (should= 256 (count (:writes (:ppu after-dma))))

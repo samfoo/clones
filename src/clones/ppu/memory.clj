@@ -1,5 +1,7 @@
 (ns clones.ppu.memory
-  (:require [clones.device :refer :all]))
+  (:require [clones.device        :refer :all]
+            [clones.nes.mappers   :refer :all]
+            [clones.ppu.nametable :refer :all]))
 
 (defn- bus-read-device [bus device-name addr]
   (let [[v new-device] (device-read (device-name bus) addr)]
@@ -10,10 +12,12 @@
     [v (assoc bus device-name new-device)]))
 
 (defn- bus-read-pattern-tables [bus addr]
-  (bus-read-device bus :pattern-tables addr))
+  (let [[v new-device] (chr-read (:mapper bus) addr)]
+    [v (assoc bus :mapper new-device)]))
 
 (defn- bus-write-pattern-tables [bus v addr]
-  (bus-write-device bus :pattern-tables v addr))
+  (let [[_ new-device] (chr-write (:mapper bus) v addr)]
+    [v (assoc bus :mapper new-device)]))
 
 (defn- bus-read-nametables [bus addr]
   (let [relative-addr (bit-and 0xfff addr)]
@@ -43,12 +47,12 @@
     (< addr 0x3eff) (bus-write-nametables bus v addr)
     :else           (bus-write-palette-ram bus v addr)))
 
-(defrecord Bus [pattern-tables
+(defrecord Bus [mapper
                 nametables
                 palette-ram]
   Device
   (device-read [this addr] (bus-read this addr))
   (device-write [this v addr] (bus-write this v addr)))
 
-(defn make-memory [pattern-tables nametables]
-  (Bus. pattern-tables nametables {}))
+(defn make-ppu-memory [mapper]
+  (Bus. mapper (make-nametables (:mirroring mapper)) {}))

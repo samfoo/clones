@@ -1,5 +1,6 @@
 (ns clones.nes
   (:require [clones.cpu         :refer :all]
+            [clones.ppu         :refer :all]
             [clones.nes.rom     :refer :all]
             [clones.nes.memory  :refer :all]
             [clones.cpu.debug   :refer :all]
@@ -27,7 +28,7 @@
              0x06 0xff
              0x07 0xff
              0x15 0xff}
-        cpu (make-cpu (make-memory ppu apu mapper))
+        cpu (make-cpu (make-main-memory ppu apu mapper))
         [reset-vector _] (io-> cpu (io-read-word 0xfffc))
         cpu-ready (assoc cpu :pc reset-vector)]
     (make-nes cpu-ready ppu apu mapper)))
