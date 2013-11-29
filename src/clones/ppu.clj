@@ -263,7 +263,7 @@
 
 (defn- step-visible-scanline [machine]
   (let [ppu (:ppu machine)]
-    (if (= 256 (:tick ppu))
+    (if (and (rendering-enabled? ppu) (= 256 (:tick ppu)))
       (assoc machine :ppu (inc-fine-y ppu))
       machine)))
 

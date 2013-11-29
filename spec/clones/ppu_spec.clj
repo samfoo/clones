@@ -78,40 +78,56 @@
 
     (describe "the visible scanlines (0-239)"
       (describe "tick 256"
-        (it (str "should set coarse Y to 0 but not switch vertical nametables "
-                 " when coarse Y is equal to 31")
-          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
-                                                   :tick 256
-                                                   :vram-addr 0x73e0})
-                machine {:ppu ppu-at-end-of-scanline}
-                new-ppu (ppu-step-debug machine)]
-            (should= 0 (:vram-addr new-ppu))))
+        (describe "when neither sprite or background rendering is enabled"
+          (it "shouldn't increment Y"
+            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? false
+                                                     :show-background? false
+                                                     :scanline 0
+                                                     :tick 256
+                                                     :vram-addr 0})
+                  machine {:ppu ppu-at-end-of-scanline}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0 (:vram-addr new-ppu)))))
 
-        (it (str "should set coarse Y to 0 and switch vertical nametables "
-                 "when coarse Y is equal to 29")
-          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
-                                                   :tick 256
-                                                   :vram-addr 0x73a0})
-                machine {:ppu ppu-at-end-of-scanline}
-                new-ppu (ppu-step-debug machine)]
-            (should= 0x800 (:vram-addr new-ppu))))
+        (describe "when either sprite or background rendering is enabled"
+          (it (str "should set coarse Y to 0 but not switch vertical nametables "
+                   " when coarse Y is equal to 31")
+            (let [ppu-at-end-of-scanline (merge ppu {:show-background? true
+                                                     :scanline 0
+                                                     :tick 256
+                                                     :vram-addr 0x73e0})
+                  machine {:ppu ppu-at-end-of-scanline}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0 (:vram-addr new-ppu))))
 
-        (it (str "should set fine Y to 0 and increment coarse Y when "
-                 "fine Y is equal to 7")
-          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
-                                                   :tick 256
-                                                   :vram-addr 0x7000})
-                machine {:ppu ppu-at-end-of-scanline}
-                new-ppu (ppu-step-debug machine)]
-            (should= 0x20 (:vram-addr new-ppu))))
+          (it (str "should set coarse Y to 0 and switch vertical nametables "
+                   "when coarse Y is equal to 29")
+            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? true
+                                                     :scanline 0
+                                                     :tick 256
+                                                     :vram-addr 0x73a0})
+                  machine {:ppu ppu-at-end-of-scanline}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0x800 (:vram-addr new-ppu))))
 
-        (it "should increment fine Y by 1 when it's < 7"
-          (let [ppu-at-end-of-scanline (merge ppu {:scanline 0
-                                                   :tick 256
-                                                   :vram-addr 0x1000})
-                machine {:ppu ppu-at-end-of-scanline}
-                new-ppu (ppu-step-debug machine)]
-            (should= 0x2000 (:vram-addr new-ppu))))))
+          (it (str "should set fine Y to 0 and increment coarse Y when "
+                   "fine Y is equal to 7")
+            (let [ppu-at-end-of-scanline (merge ppu {:show-background? true
+                                                     :scanline 0
+                                                     :tick 256
+                                                     :vram-addr 0x7000})
+                  machine {:ppu ppu-at-end-of-scanline}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0x20 (:vram-addr new-ppu))))
+
+          (it "should increment fine Y by 1 when it's < 7"
+            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? true
+                                                     :scanline 0
+                                                     :tick 256
+                                                     :vram-addr 0x1000})
+                  machine {:ppu ppu-at-end-of-scanline}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0x2000 (:vram-addr new-ppu)))))))
 
     (describe "the pre-render scanline (-1)"
       (describe "tick 304"
