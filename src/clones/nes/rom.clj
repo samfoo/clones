@@ -108,6 +108,7 @@
         prg-banks (nth data 4)
         chr-rom-size (* chr-bank-size (nth data 5))
         chr-banks (nth data 5)
+        chr-ram? (= 0 (nth data 5))
         flags-6 (bit-map (nth data 6)
                          :lower-mapper-nibble 4
                          :mirroring-upper 1
@@ -135,6 +136,7 @@
               :prg-banks prg-banks
               :chr-rom-size chr-rom-size
               :chr-banks chr-banks
+              :chr-ram? chr-ram?
               :mapper mapper
               :mapper-name (get mapper-names mapper)
               :mirroring mirroring

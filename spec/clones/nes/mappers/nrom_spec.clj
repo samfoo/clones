@@ -8,6 +8,7 @@
                    :prg-banks 1
                    :prg-data (vec (repeat 0x8000 0))
                    :chr-banks 1
+                   :chr-ram? false
                    :chr-data (vec (repeat 0x2000 0))})
 
 (def rom (nrom rom-defaults))
@@ -15,6 +16,19 @@
 (describe "The NROM mapper" (tags :nrom)
   (describe "graphics ROM"
     (describe "$0000 - $0fff"
+      (describe "when there is chr RAM instead of ROM"
+        (it "should read from chr RAM"
+          (let [nrom-w-ram (nrom (merge rom-defaults {:chr-ram? true
+                                                      :chr-data {0x100 0xbe}
+                                                      :chr-banks 0}))]
+            (should= 0xbe (first (chr-read nrom-w-ram 0x100)))))
+
+        (it "should write to chr RAM"
+          (let [nrom-w-ram (nrom (merge rom-defaults {:chr-ram? true
+                                                      :chr-banks 0}))
+                [_ after-write] (chr-write nrom-w-ram 0xbe 0)]
+            (should= 0xbe (first (chr-read after-write 0))))))
+
       (let [single-bank (assoc (vec (repeat 0x2000 0)) 0 0xbe)
             rom-w-1-bank (nrom (merge rom-defaults {:chr-banks 1
                                                     :chr-data single-bank}))]

@@ -5,6 +5,9 @@
 (def invalid-header (repeat 16 0))
 (def valid-header [78 69 83 26 1 1 0 0 0 0 0 0 0 0 0 0])
 
+(def with-2-chr-banks [78 69 83 26 1 2 0 0 0 0 0 0 0 0 0 0])
+(def with-chr-ram [78 69 83 26 1 0 0 0 0 0 0 0 0 0 0 0])
+
 (def with-mapper-1 [78 69 83 26 1 1 16 0 0 0 0 0 0 0 0 0])
 (def with-mapper-16 [78 69 83 26 1 1 0 16 0 0 0 0 0 0 0 0])
 (def with-mapper-17 [78 69 83 26 1 1 16 16 0 0 0 0 0 0 0 0])
@@ -29,6 +32,15 @@
 
 (describe "An iNES ROM parser"
   (describe "parse-ines-header"
+    (it "should read that a ROM uses chr ROM when the 6th byte is not 0"
+      (should-not (:chr-ram? (parse-ines-header valid-header))))
+
+    (it "should read that a ROM uses chr RAM when the 6th byte is 0"
+      (should (:chr-ram? (parse-ines-header with-chr-ram))))
+
+    (it "should read the number of chr banks from the 6th byte"
+      (should= 2 (:chr-banks (parse-ines-header with-2-chr-banks))))
+
     (it "should read that it is not NES-2 format if bits 3 & 2 of the 7th byte aren't 10"
       (should-not (:nes-2? (parse-ines-header valid-header))))
 

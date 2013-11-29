@@ -18,11 +18,18 @@
       [(aget prg-rom relative-addr) nrom]
       [(aget prg-rom (bit-and 0x3fff relative-addr)) nrom])))
 
+(defn- nrom-read-chr-ram [nrom addr]
+  (let [chr-data (:chr-data nrom)]
+    [(get chr-data addr 0) nrom]))
+
+(defn- nrom-write-chr-ram [nrom v addr]
+  [v (assoc-in nrom [:chr-data addr] v)])
+
 (defn- nrom-read-chr-rom [nrom addr]
-  (let [^ints chr-rom (:chr-rom nrom)]
+  (let [^ints chr-data (:chr-data nrom)]
     (if (and (> 0xfff addr) (> (:chr-banks nrom) 1))
-      [(aget chr-rom addr) nrom]
-      [(aget chr-rom (bit-and 0xfff addr)) nrom])))
+      [(aget chr-data addr) nrom]
+      [(aget chr-data (bit-and 0xfff addr)) nrom])))
 
 (defrecord NROM [^int prg-banks
                  ^ints prg-rom
@@ -30,17 +37,22 @@
                  prg-ram
 
                  ^int chr-banks
-                 ^ints chr-rom
+                 ^ints chr-data
+                 ^boolean chr-ram?
 
                  mirroring]
   Mapper
   (chr-read [this addr]
-    (nrom-read-chr-rom this addr))
+    (if chr-ram?
+      (nrom-read-chr-ram this addr)
+      (nrom-read-chr-rom this addr)))
 
   (chr-write [this v addr]
-    (throw (ex-info
-             "Invalid memory access on NROM cartidge"
-             {:addr addr :type :write})))
+    (if chr-ram?
+      (nrom-write-chr-ram this v addr)
+      (throw (ex-info
+               "Invalid memory access on NROM cartidge"
+               {:addr addr :type :write}))))
 
   (prg-read [this addr]
     (cond
@@ -59,8 +71,12 @@
       :else [v this])))
 
 (defn nrom [rom]
-  (NROM. (:prg-banks rom) (int-array (:prg-data rom))
-         {}
-         (:chr-banks rom) (int-array (:chr-data rom))
-         (:mirroring rom)))
+  (let [chr-data (if (:chr-ram? rom)
+                   {}
+                   (int-array (:chr-data rom)))]
+    (NROM. (:prg-banks rom) (int-array (:prg-data rom))
+           {}
+           (:chr-banks rom) chr-data
+           (:chr-ram? rom)
+           (:mirroring rom))))
 
