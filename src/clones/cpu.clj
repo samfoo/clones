@@ -16,6 +16,31 @@
                 ^int pc
                 memory])
 
+(defn negative? [b] (== 0x80 (bit-and b 0x80)))
+
+(def carry-flag 0x01)
+(def zero-flag 0x02)
+(def interrupt-flag 0x04)
+(def decimal-flag 0x08)
+(def break-flag 0x10)
+(def unused-flag 0x20)
+(def overflow-flag 0x40)
+(def negative-flag 0x80)
+
+(defn flag? [flags mask] (= mask (bit-and flags mask)))
+(defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
+(defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
+(defn decimal-flag? [cpu] (flag? (:p cpu) decimal-flag))
+(defn interrupt-flag? [cpu] (flag? (:p cpu) interrupt-flag))
+(defn overflow-flag? [cpu] (flag? (:p cpu) overflow-flag))
+(defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
+
+(defn set-flag [cpu flag v]
+  (let [flags (:p cpu)]
+    (if v
+      (assoc cpu :p (bit-or flags flag))
+      (assoc cpu :p (bit-and flags (bit-not flag))))))
+
 (defmacro defop [op-name opcodes action]
   (let [fn-args [^CPU 'cpu 'address-mode]]
     `(let [~'op-fn (fn ~fn-args
@@ -48,6 +73,53 @@
                    (:pc cpu)
                    (mode-size mode))))
 
+(defn stack-push [cpu v]
+  (let [pointer (+ 0x100 (:sp cpu))
+        [_ after-push] (io-> cpu
+                             (io-write v pointer))
+        new-sp (unsigned-byte (dec (:sp cpu)))]
+    (assoc after-push :sp new-sp)))
+
+(defn stack-pull [cpu]
+  (let [top (unsigned-byte (inc (:sp cpu)))
+        pointer (+ 0x100 top)
+        [v after-pull] (io-> cpu (io-read pointer))
+        new-sp (unsigned-byte (inc (:sp cpu)))]
+    [v (assoc after-pull :sp new-sp)]))
+
+(defn stack-pull-reg [cpu reg]
+  (let [[v after-pull] (stack-pull cpu)]
+    (assoc after-pull reg v)))
+
+(defn stack-pull-pc [cpu]
+  (let [[low after-low] (stack-pull cpu)
+        [high after-pulls] (stack-pull after-low)
+        new-pc (bit-or (bit-shift-left high 8) low)]
+    (assoc after-pulls :pc new-pc)))
+
+(defn stack-pull-flags [cpu]
+  (let [pulled (stack-pull-reg cpu :p)]
+    (-> pulled
+      (set-flag break-flag false)
+      (set-flag unused-flag true))))
+
+(defn interrupt-vector [cpu]
+  (io-> cpu (io-read-word 0xfffe)))
+
+(defn nmi-vector [cpu]
+  (io-> cpu (io-read-word 0xfffa)))
+
+(defn perform-nmi [machine]
+  (let [cpu (:cpu machine)
+        return-pc (:pc cpu)
+        high (high-byte return-pc)
+        low  (low-byte return-pc)
+        [interrupt after-read] (nmi-vector cpu)]
+    (assoc machine :cpu (-> after-read
+                          (stack-push high)
+                          (stack-push low)
+                          (assoc :pc interrupt)))))
+
 (defn cpu-step [machine]
   (let [cpu (:cpu machine)
         [op-code after-read] (io-> cpu (io-read (:pc cpu)))
@@ -58,31 +130,6 @@
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
       [cs (merge machine {:cpu after-op
                           :ppu (:ppu (:memory after-op))})])))
-
-(defn negative? [b] (== 0x80 (bit-and b 0x80)))
-
-(def carry-flag 0x01)
-(def zero-flag 0x02)
-(def interrupt-flag 0x04)
-(def decimal-flag 0x08)
-(def break-flag 0x10)
-(def unused-flag 0x20)
-(def overflow-flag 0x40)
-(def negative-flag 0x80)
-
-(defn flag? [flags mask] (= mask (bit-and flags mask)))
-(defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
-(defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
-(defn decimal-flag? [cpu] (flag? (:p cpu) decimal-flag))
-(defn interrupt-flag? [cpu] (flag? (:p cpu) interrupt-flag))
-(defn overflow-flag? [cpu] (flag? (:p cpu) overflow-flag))
-(defn negative-flag? [cpu] (flag? (:p cpu) negative-flag))
-
-(defn set-flag [cpu flag v]
-  (let [flags (:p cpu)]
-    (if v
-      (assoc cpu :p (bit-or flags flag))
-      (assoc cpu :p (bit-and flags (bit-not flag))))))
 
 (defn- different-pages? [a1 a2]
   (not= (bit-and 0xff00 a1) (bit-and 0xff00 a2)))
@@ -435,41 +482,8 @@
 (defop dey [0x88 implied (cycles 2)] (dec-reg-op cpu :y))
 
 ;; Stack pushing and popping
-(defn stack-push [cpu v]
-  (let [pointer (+ 0x100 (:sp cpu))
-        [_ after-push] (io-> cpu
-                             (io-write v pointer))
-        new-sp (unsigned-byte (dec (:sp cpu)))]
-    (assoc after-push :sp new-sp)))
-
 (defop pha [0x48 implied (cycles 3)] (stack-push cpu (:a cpu)))
 (defop php [0x08 implied (cycles 3)] (stack-push cpu (bit-or 0x10 (:p cpu))))
-
-(defn stack-pull [cpu]
-  (let [top (unsigned-byte (inc (:sp cpu)))
-        pointer (+ 0x100 top)
-        [v after-pull] (io-> cpu (io-read pointer))
-        new-sp (unsigned-byte (inc (:sp cpu)))]
-    [v (assoc after-pull :sp new-sp)]))
-
-(defn stack-pull-reg [cpu reg]
-  (let [[v after-pull] (stack-pull cpu)]
-    (assoc after-pull reg v)))
-
-(defn stack-pull-pc [cpu]
-  (let [[low after-low] (stack-pull cpu)
-        [high after-pulls] (stack-pull after-low)
-        new-pc (bit-or (bit-shift-left high 8) low)]
-    (assoc after-pulls :pc new-pc)))
-
-(defn stack-pull-flags [cpu]
-  (let [pulled (stack-pull-reg cpu :p)]
-    (-> pulled
-      (set-flag break-flag false)
-      (set-flag unused-flag true))))
-
-(defn interrupt-vector [cpu]
-  (io-> cpu (io-read-word 0xfffe)))
 
 (defop pla [0x68 implied (cycles 4)]
   (let [pulled (stack-pull-reg cpu :a)

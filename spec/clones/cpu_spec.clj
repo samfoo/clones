@@ -13,9 +13,39 @@
 (def cpu-with-overflow (assoc cpu :p overflow-flag))
 
 (describe "The NES's 6502 2A03/7 CPU"
+  (defn peek-stack-n [c n]
+    (first
+      (io-> c
+            (io-read (+ 0x100 1 n (:sp c))))))
+
+  (defn peek-stack [c] (peek-stack-n c 0))
+
+  (defn with-stack-top [cpu v]
+    (let [[_ after-write] (io-> cpu
+                                (io-write v 0x1fd))]
+      (assoc after-write :sp 0xfc)))
+
   (it "should remove any meta on the CPU when executing an op"
     (let [new-cpu ((:nop ops) (with-meta cpu {:meta 1}) :implied)]
       (should-not (contains? (meta new-cpu) :meta))))
+
+  (describe "executing an NMI"
+    (it "should set the program counter to the NMI vector at $fffa"
+      (let [machine {:cpu (second (io-> cpu
+                                        (io-write-word 0xbeef 0xfffa)))}
+            new-machine (perform-nmi machine)
+            new-cpu (:cpu new-machine)]
+        (should= 0xbeef (:pc new-cpu))))
+
+
+    (it "should push the current program counter to the stack"
+      (let [machine {:cpu (assoc cpu :pc 0xffee)}
+            new-machine (perform-nmi machine)
+            new-cpu (:cpu new-machine)
+            low (peek-stack-n new-cpu 0)
+            high (peek-stack-n new-cpu 1)]
+        (should= 0xff high)
+        (should= 0xee low))))
 
   (describe "instruction set"
     (defn check-zero-flag-sets [c]
@@ -48,18 +78,6 @@
                (let [result (op c (mode-by-name mode))]
                  (should= (+ amount (:pc c)) (:pc result)))))
            (partition 2 vs)))
-
-    (defn peek-stack-n [c n]
-      (first
-        (io-> c
-              (io-read (+ 0x100 1 n (:sp c))))))
-
-    (defn peek-stack [c] (peek-stack-n c 0))
-
-    (defn with-stack-top [cpu v]
-      (let [[_ after-write] (io-> cpu
-                                  (io-write v 0x1fd))]
-        (assoc after-write :sp 0xfc)))
 
     (defn check-branching [desc f should-branch should-not-branch]
       (it desc

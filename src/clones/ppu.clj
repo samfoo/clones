@@ -227,10 +227,8 @@
                                       (not (:suppress-vblank? ppu)))
                                (merge {:suppress-vblank? false
                                        :suppress-nmi? false}))
-            irqs (if request-nmi?
-                   (conj (:interrupt-requests machine) :nmi)
-                   (:interrupt-requests machine))]
-        (merge machine {:ppu ppu-after-vblank :interrupt-requests irqs}))
+            nmi (if request-nmi? :nmi nil)]
+        (merge machine {:ppu ppu-after-vblank :interrupt nmi}))
       machine)))
 
 (defn- inc-coarse-y [ppu]

@@ -36,18 +36,18 @@
             (let [machine {:ppu (merge ppu {:tick 1
                                             :nmi-on-vblank? false
                                             :scanline 240})
-                           :interrupt-requests #{}}
+                           :interrupt nil}
                   new-machine (ppu-step machine)]
-              (should-not (contains? (:interrupt-requests new-machine) :nmi)))))
+              (should= nil (:interrupt new-machine)))))
 
         (describe "when NMI on vblank control is turned on"
           (it "should request an NMI"
             (let [machine {:ppu (merge ppu {:tick 1
                                             :nmi-on-vblank? true
                                             :scanline 240})
-                           :interrupt-requests #{}}
+                           :interrupt nil}
                   new-machine (ppu-step machine)]
-              (should (contains? (:interrupt-requests new-machine) :nmi)))))
+              (should= :nmi (:interrupt new-machine)))))
 
         (describe "when suppressing vblank"
           (it "should unsuppress vblank after having suppressed it"
