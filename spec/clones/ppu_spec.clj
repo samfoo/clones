@@ -114,6 +114,29 @@
             (should= 0x2000 (:vram-addr new-ppu))))))
 
     (describe "the pre-render scanline (-1)"
+      (describe "tick 304"
+        (describe "when neither sprite or background rendering is enabled"
+          (it "should not copy the vram latch to the vram addr"
+            (let [ppu-w-latch (merge ppu {:show-sprites? false
+                                          :show-background? false
+                                          :scanline -1
+                                          :tick 304
+                                          :vram-latch 0xbeef})
+                  machine {:ppu ppu-w-latch}
+                  new-ppu (ppu-step-debug machine)]
+              (should= 0 (:vram-addr new-ppu)))))
+
+        (describe "when either sprite or background rendering is enabled"
+          (it "should copy the vram latch to the vram addr"
+            (for [flag [:show-background? :show-sprites?]]
+              (let [ppu-w-latch (merge ppu {flag true
+                                            :scanline -1
+                                            :tick 304
+                                            :vram-latch 0xbeef})
+                    machine {:ppu ppu-w-latch}
+                    new-ppu (ppu-step-debug machine)]
+                (should= 0xbeef (:vram-addr new-ppu)))))))
+
       (describe "tick 1"
         (it "should clear the vblank started flag"
           (let [ppu-w-vblank-started (merge ppu {:vblank-started? true

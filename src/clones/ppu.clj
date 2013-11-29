@@ -207,13 +207,19 @@
         -1 0
         bus))
 
+(defn- rendering-enabled? [ppu]
+  (or (:show-sprites? ppu) (:show-background? ppu)))
+
 (defn- step-pre-render-scanline [machine]
   (let [ppu (:ppu machine)]
-    (if (= 1 (:tick ppu))
-      (assoc machine :ppu
-             (merge ppu {:sprite-0-hit? false
-                         :sprite-overflow? false
-                         :vblank-started? false}))
+    (condp = (:tick ppu)
+      1 (assoc machine :ppu
+               (merge ppu {:sprite-0-hit? false
+                           :sprite-overflow? false
+                           :vblank-started? false}))
+      304 (if (rendering-enabled? ppu)
+            (assoc-in machine [:ppu :vram-addr] (:vram-latch ppu))
+            machine)
       machine)))
 
 (defn- step-post-render-scanline [machine]
