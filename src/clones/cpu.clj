@@ -128,8 +128,7 @@
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
       nil)
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
-      [cs (merge machine {:cpu after-op
-                          :ppu (:ppu (:memory after-op))})])))
+      [cs (assoc machine :cpu after-op)])))
 
 (defn- different-pages? [a1 a2]
   (not= (bit-and 0xff00 a1) (bit-and 0xff00 a2)))

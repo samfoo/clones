@@ -16,17 +16,25 @@
 (defn- catch-ppu-up [nes cycles]
   (if (= 0 cycles)
     nes
-    (recur (ppu-step nes) (dec cycles))))
+    (catch-ppu-up (ppu-step nes) (dec cycles))))
 
 (defn- handle-interrupt [nes]
   (condp = (:interrupt nes)
     :nmi (perform-nmi nes)
     nes))
 
+(defn- update-ppu [machine ppu]
+  (-> machine
+    (assoc-in [:cpu :memory :ppu] ppu)
+    (assoc :ppu ppu)))
+
 (defn system-step [nes]
   (let [[cpu-cycles after-cpu] (cpu-step nes)
-        after-ppu (catch-ppu-up after-cpu (* 3 cpu-cycles))]
-    after-ppu))
+        after-ppu (-> after-cpu
+                    (update-ppu (get-in after-cpu [:cpu :memory :ppu]))
+                    (catch-ppu-up (* 3 cpu-cycles)))
+        with-updated-ppu (update-ppu after-ppu (:ppu after-ppu))]
+    with-updated-ppu))
 
 (defn- make-nes [cpu ppu apu mapper]
   (NES. cpu ppu apu mapper #{}))

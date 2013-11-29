@@ -14,7 +14,7 @@
       (format "%s CYC:%3d" (debug-step (:cpu nes)) cycles)
       (lazy-seq
         (let [[cs new-nes] (cpu-step nes)]
-          (lazy-debug-w-cycles new-nes (+ total-cycles cs)))))))
+          (recur new-nes (+ total-cycles cs)))))))
 
 (defn- lazy-debug [nes]
   (lazy-debug-w-cycles nes 0))
