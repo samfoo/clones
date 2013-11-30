@@ -150,7 +150,8 @@
   (condp = addr
     2 (status-read ppu)
     4 (oam-data-read ppu)
-    7 (data-read ppu)))
+    7 (data-read ppu)
+    [0 ppu]))
 
 (defrecord PPU
   [^int control

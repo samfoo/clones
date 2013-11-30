@@ -18,7 +18,7 @@
     nes
     (catch-ppu-up (ppu-step nes) (dec cycles))))
 
-(defn- handle-interrupt [nes]
+(defn- handle-interrupts [nes]
   (condp = (:interrupt nes)
     :nmi (perform-nmi nes)
     nes))
@@ -29,7 +29,8 @@
     (assoc :ppu ppu)))
 
 (defn system-step [nes]
-  (let [[cpu-cycles after-cpu] (cpu-step nes)
+  (let [after-interrupts (handle-interrupts nes)
+        [cpu-cycles after-cpu] (cpu-step after-interrupts)
         after-ppu (-> after-cpu
                     (update-ppu (get-in after-cpu [:cpu :memory :ppu]))
                     (catch-ppu-up (* 3 cpu-cycles)))
