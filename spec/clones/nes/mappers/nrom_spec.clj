@@ -19,9 +19,9 @@
       (describe "when there is chr RAM instead of ROM"
         (it "should read from chr RAM"
           (let [nrom-w-ram (nrom (merge rom-defaults {:chr-ram? true
-                                                      :chr-data {0x100 0xbe}
-                                                      :chr-banks 0}))]
-            (should= 0xbe (first (chr-read nrom-w-ram 0x100)))))
+                                                      :chr-banks 0}))
+                nrom-w-ram-val (assoc-in nrom-w-ram [:chr-data 0x100] 0xbe)]
+            (should= 0xbe (first (chr-read nrom-w-ram-val 0x100)))))
 
         (it "should write to chr RAM"
           (let [nrom-w-ram (nrom (merge rom-defaults {:chr-ram? true
