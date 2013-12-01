@@ -188,6 +188,7 @@
    ^int scanline
    ^int tick
 
+   background-frame-buffer
    memory]
 
   Device
@@ -206,6 +207,7 @@
         0 init-oam-ram
         0 0 0 0
         -1 0
+        (vec (repeat (* 256 240) 0))
         bus))
 
 (defn- rendering-enabled? [ppu]
@@ -303,11 +305,12 @@
   (let [vram-addr start-of-line-vram-addr
         coarse-x (bit-and vram-addr 0x1f)
         new-coarse-x (+ coarse-x tile-x-index)
-        overflow? (> new-coarse-x 0x1f)]
-    (-> vram-addr
-      (bit-and 0xffe0)
-      (bit-xor (if overflow? 0x400 0))
-      (bit-or (bit-and 0x1f new-coarse-x)))))
+        overflow? (> new-coarse-x 0x1f)
+        result (-> vram-addr
+                 (bit-and 0xffe0)
+                 (bit-xor (if overflow? 0x400 0))
+                 (bit-or (bit-and 0x1f new-coarse-x)))]
+    result))
 
 (defn pattern-tile-indices-for-current-scanline [ppu]
   ;; TODO: Fine-x scroll... I'm not entirely sure how it works.
@@ -316,15 +319,49 @@
     (map (fn [i]
            (let [nametable-addr (bit-or
                                   0x2000
-                                  (vram-addr-for-scanline-tile vram-addr i))
+                                  (bit-and
+                                    0xfff
+                                    (vram-addr-for-scanline-tile vram-addr i)))
                  tile-index (first (device-read memory nametable-addr))]
              tile-index))
          (range 32))))
 
+(defn- render-background-for-current-scanline [ppu]
+  (let [scanline (:scanline ppu)
+        frame-buffer (:background-frame-buffer ppu)
+        fine-y (bit-shift-right (:vram-addr ppu) 12)
+        tile-indices (pattern-tile-indices-for-current-scanline ppu)
+        scanline-pattern (vec (flatten
+                                (map #(pattern-tile-row ppu % fine-y)
+                                     tile-indices)))
+        scanlines-before (subvec frame-buffer
+                                 0 (* 256 scanline))
+        scanlines-after (subvec frame-buffer
+                                (* 256 (+ 1 scanline)))
+
+        new-frame-buffer (-> []
+                           (into scanlines-before)
+                           (into scanline-pattern)
+                           (into scanlines-after))]
+    (assoc ppu :background-frame-buffer new-frame-buffer)))
+
+(defn- maybe-render-background [ppu]
+  (if (:show-background? ppu)
+    (render-background-for-current-scanline ppu)
+    ppu))
+
+(defn- maybe-inc-fine-y [ppu]
+  (if (rendering-enabled? ppu)
+    (inc-fine-y ppu)
+    ppu))
+
 (defn- step-visible-scanline [machine]
   (let [ppu (:ppu machine)]
-    (if (and (rendering-enabled? ppu) (= 256 (:tick ppu)))
-      (assoc machine :ppu (inc-fine-y ppu))
+    (if (= 256 (:tick ppu))
+      (let [after-scanline (-> ppu
+                             (maybe-render-background)
+                             (maybe-inc-fine-y))]
+        (assoc machine :ppu after-scanline))
       machine)))
 
 (defn- advance-scanline [ppu]

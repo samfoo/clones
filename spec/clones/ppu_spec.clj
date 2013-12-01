@@ -6,8 +6,8 @@
 (def ppu (make-ppu {}))
 (def ppu-latch-off (assoc ppu :write-latch? false))
 
-(describe "The NES's 2C02 PPU"
-  (describe "pattern-tile-indices-for-current-scanline" (tags :wip)
+(describe "The NES's 2C02 PPU" (tags :ppu)
+  (describe "pattern-tile-indices-for-current-scanline"
     (def tiles (vec (repeat 32 0)))
 
     (it (str "should switch horizontal nametables midway through if the tiles
@@ -130,6 +130,66 @@
 
     (describe "the visible scanlines (0-239)"
       (describe "tick 256"
+        (def frame-buffer-bg (vec (repeat (* 256 240) 0)))
+
+        (def memory {;; Pattern table has 16 bytes, these two combine to
+                     ;; first row of the pattern.
+                     ;;
+                     ;; Pattern in this case is:
+                     ;;
+                     ;; 3 0 1 3 3 3 2 0
+                     ;; 1 0 0 0 0 0 0 2
+                     ;; 0 0 0 0 0 0 0 0
+                     ;; ... (for the whole 8 rows)
+                     0x0010 0xbc
+                     0x0018 0x9e
+
+                     0x0011 0x80
+                     0x0019 0x01
+
+                     ;; Nametable points to pattern table
+                     0x2000 0x01})
+
+        (def ppu-at-end-of-scanline (merge ppu {:show-sprites? false
+                                                :show-background? true
+                                                :tick 256
+                                                :memory memory}))
+
+        (describe "when background rendering is disabled"
+          (it "shouldn't render anything to the frame buffer"
+            (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
+                                                  {:scanline 0
+                                                   :show-background? false
+                                                   :vram-addr 0})
+                  machine {:ppu ppu-at-end-of-scanline-0}
+                  new-ppu (ppu-step-debug machine)]
+              (should=
+                [0 0 0 0 0 0 0 0]
+                (take 8 (:background-frame-buffer new-ppu))))))
+
+        (describe "when background rendering is enabled"
+          (it "should add the background tile rows to the second scanline"
+            (let [ppu-at-end-of-scanline-1 (merge ppu-at-end-of-scanline
+                                                  {:scanline 1
+                                                   :vram-addr 0x1000})
+                  machine {:ppu ppu-at-end-of-scanline-1}
+                  new-ppu (ppu-step-debug machine)]
+              (should=
+                [1 0 0 0 0 0 0 2]
+                (->> (:background-frame-buffer new-ppu)
+                  (drop 256)
+                  (take 8)))))
+
+          (it "should add the background tile rows to the first scanline"
+            (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
+                                                  {:scanline 0
+                                                   :vram-addr 0})
+                  machine {:ppu ppu-at-end-of-scanline-0}
+                  new-ppu (ppu-step-debug machine)]
+              (should=
+                [3 0 1 3 3 3 2 0]
+                (take 8 (:background-frame-buffer new-ppu))))))
+
         (describe "when neither sprite or background rendering is enabled"
           (it "shouldn't increment Y"
             (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? false
