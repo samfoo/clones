@@ -262,6 +262,65 @@
       (let [new-vram-addr (+ vram-addr 0x1000)]
         (assoc ppu :vram-addr new-vram-addr)))))
 
+(defn- inc-coarse-x [ppu]
+  (let [vram-addr (:vram-addr ppu)
+        old-coarse-x (bit-and vram-addr 0x1f)
+        new-vram-addr (if (= 31 old-coarse-x)
+                        (-> old-coarse-x
+                          (bit-and 0xffe0)
+                          (bit-xor 0x400))
+                        (inc old-coarse-x))]
+    (assoc ppu :vram-addr new-vram-addr)))
+
+(defn pattern-tile-row [ppu tile-index fine-y]
+  "Read a row of palette indicies (0, 1, 2 or 3) from the pattern table.
+
+  tile-index is the reference in the nametable."
+
+  (let [pattern-table-addr (* 0x1000 (:background-pattern-addr ppu))
+        start (-> tile-index
+                (bit-shift-left 4)
+                (bit-and 0x0ff0)
+                (bit-or pattern-table-addr)
+                (bit-or fine-y))
+        memory (:memory ppu)
+        pixel-row-low (first (device-read memory start))
+        pixel-row-high (first (device-read memory (+ start 8)))]
+    (reduce (fn [palette-indices i]
+              (let [low-bit (-> pixel-row-low
+                              (bit-shift-right i)
+                              (bit-and 1))
+                    high-bit (-> pixel-row-high
+                               (bit-shift-right i)
+                               (bit-and 1)
+                               (bit-shift-left 1))
+                    palette-index (bit-or low-bit high-bit)]
+                (cons palette-index palette-indices)))
+            []
+            (range 8))))
+
+(defn- vram-addr-for-scanline-tile [start-of-line-vram-addr tile-x-index]
+  (let [vram-addr start-of-line-vram-addr
+        coarse-x (bit-and vram-addr 0x1f)
+        new-coarse-x (+ coarse-x tile-x-index)
+        overflow? (> new-coarse-x 0x1f)]
+    (-> vram-addr
+      (bit-and 0xffe0)
+      (bit-xor (if overflow? 0x400 0))
+      (bit-or (bit-and 0x1f new-coarse-x)))))
+
+(defn pattern-tile-indices-for-current-scanline [ppu]
+  ;; TODO: Fine-x scroll... I'm not entirely sure how it works.
+  (let [memory (:memory ppu)
+        vram-addr (:vram-addr ppu)]
+    (map (fn [i]
+           (let [nametable-addr (bit-or
+                                  0x2000
+                                  (vram-addr-for-scanline-tile vram-addr i))
+                 tile-index (first (device-read memory nametable-addr))]
+             tile-index))
+         (range 32))))
+
 (defn- step-visible-scanline [machine]
   (let [ppu (:ppu machine)]
     (if (and (rendering-enabled? ppu) (= 256 (:tick ppu)))

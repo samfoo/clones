@@ -7,6 +7,58 @@
 (def ppu-latch-off (assoc ppu :write-latch? false))
 
 (describe "The NES's 2C02 PPU"
+  (describe "pattern-tile-indices-for-current-scanline" (tags :wip)
+    (def tiles (vec (repeat 32 0)))
+
+    (it (str "should switch horizontal nametables midway through if the tiles
+             cross a nametable border")
+      (let [ppu-w-nametables (merge ppu {:vram-addr 0x001f
+                                         :memory {0x201f 1
+                                                  0x2400 1}})
+            tile-indices (pattern-tile-indices-for-current-scanline
+                           ppu-w-nametables)]
+        (should= (-> tiles
+                   (assoc 0 1)
+                   (assoc 1 1)) tile-indices)))
+
+    (it "should read from the nametables starting at vram addr + $2000"
+      (let [ppu-w-nametable (assoc ppu :memory {0x2000 1
+                                                0x201f 1})
+            tile-indices (pattern-tile-indices-for-current-scanline
+                           ppu-w-nametable)]
+        (should= (-> tiles
+                   (assoc 0  1)
+                   (assoc 31 1)) tile-indices))))
+
+  (describe "pattern-tile-row"
+    (it (str "should use the line index (fine Y scroll) as the least "
+             "significant 4 bits")
+      (let [ppu-w-tile (assoc ppu :memory {0x01e1 0x41
+                                           0x01e9 0x11})
+            palette-indices (pattern-tile-row ppu-w-tile 30 1)]
+        (should= [0 1 0 2 0 0 0 3] palette-indices)))
+
+    (it (str "should use the index (coarse X scroll) as the middle byte of "
+             "the address (e.g. $0xx0)")
+      (let [ppu-w-tile (assoc ppu :memory {0x01e0 0x41
+                                           0x01e8 0x11})
+            palette-indices (pattern-tile-row ppu-w-tile 30 0)]
+        (should= [0 1 0 2 0 0 0 3] palette-indices)))
+
+    (it "should start at $1000 if the background pattern address is 1"
+      (let [ppu-w-tile (merge ppu {:background-pattern-addr 1
+                                   :memory {0x1000 0x41    ;; 01000001
+                                            0x1008 0x11}}) ;; 00010001
+            palette-indices (pattern-tile-row ppu-w-tile 0 0)]
+        (should= [0 1 0 2 0 0 0 3] palette-indices)))
+
+    (it (str "should read the low and high bytes and combine them into a "
+             "stream of palette indices from 0 to 3")
+      (let [ppu-w-tile (assoc ppu :memory {0 0x41   ;; 01000001
+                                           8 0x11}) ;; 00010001
+            palette-indices (pattern-tile-row ppu-w-tile 0 0)]
+        (should= [0 1 0 2 0 0 0 3] palette-indices))))
+
   (describe "ppu-step"
     (defn ppu-step-debug [machine]
       (:ppu (ppu-step machine)))
