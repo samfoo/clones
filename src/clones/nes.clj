@@ -14,7 +14,7 @@
                 interrupt-requests])
 
 (defn- catch-ppu-up [nes cycles]
-  (if (= 0 cycles)
+  (if (zero? cycles)
     nes
     (catch-ppu-up (ppu-step nes) (dec cycles))))
 

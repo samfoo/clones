@@ -86,8 +86,8 @@
     (assoc after-write :write-latch? (not (:write-latch? ppu)))))
 
 (defn- advance-vram-addr [ppu]
-  (assoc ppu :vram-addr (if (= 0 (:vram-addr-inc ppu))
-                          (+ 1 (:vram-addr ppu))
+  (assoc ppu :vram-addr (if (zero? (:vram-addr-inc ppu))
+                          (inc (:vram-addr ppu))
                           (+ 0x20 (:vram-addr ppu)))))
 
 (defn data-write [ppu v]
@@ -236,7 +236,7 @@
                                       (not (:suppress-vblank? ppu)))
                                (merge {:suppress-vblank? false
                                        :suppress-nmi? false}))
-            nmi (if request-nmi? :nmi nil)]
+            nmi (when request-nmi? :nmi)]
         (merge machine {:ppu ppu-after-vblank :interrupt nmi}))
       machine)))
 
@@ -337,7 +337,7 @@
         scanlines-before (subvec frame-buffer
                                  0 (* 256 scanline))
         scanlines-after (subvec frame-buffer
-                                (* 256 (+ 1 scanline)))
+                                (* 256 (inc scanline)))
 
         new-frame-buffer (-> []
                            (into scanlines-before)

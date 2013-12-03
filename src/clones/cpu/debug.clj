@@ -5,7 +5,7 @@
             [clones.cpu.addressing :refer :all]))
 
 (defn- inc-pc [cpu]
-  (assoc cpu :pc (inc (:pc cpu))))
+  (update-in cpu [:pc] inc))
 
 (defn- op-code-arg [cpu mode]
   (let [c (inc-pc cpu)]
@@ -32,12 +32,10 @@
 
 (defn debug-address-mode [cpu mode op-name]
   (let [arg (op-code-arg cpu mode)
-        location (if (not= mode implied)
-                   (io-debug-> (inc-pc cpu) (mode))
-                   nil)
-        value (if (not= mode implied)
-                (io-debug-> (inc-pc cpu) (mode-read mode))
-                nil)]
+        location (when (not= mode implied)
+                   (io-debug-> (inc-pc cpu) (mode)))
+        value (when (not= mode implied)
+                (io-debug-> (inc-pc cpu) (mode-read mode)))]
   (condp = mode
     immediate (format "#$%02X" arg)
     zero-page (format "$%02X = %02X"

@@ -16,8 +16,7 @@
 (defn- read-null-term-str-from [nes addr]
   (let [cpu (:cpu nes)
         b (io-debug-> cpu (io-read addr))
-        c (if (= 0 b)
-            nil
+        c (when-not (zero? b)
             (char b))]
     (if (nil? c)
       ""

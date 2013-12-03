@@ -60,7 +60,7 @@
 (defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 bus))
 
 (defn- inc-pc [cpu]
-  (assoc cpu :pc (inc (:pc cpu))))
+  (update-in cpu [:pc] inc))
 
 (defn execute-with-timing [cpu op]
   (let [{:keys [address-mode name cycles]} (meta op)
@@ -69,9 +69,7 @@
     [cs after-op]))
 
 (defn- advance-pc [cpu mode]
-  (assoc cpu :pc (+
-                   (:pc cpu)
-                   (mode-size mode))))
+  (update-in cpu [:pc] + (mode-size mode)))
 
 (defn stack-push [cpu v]
   (let [pointer (+ 0x100 (:sp cpu))
@@ -126,9 +124,8 @@
   (let [cpu (:cpu machine)
         [op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (get op-codes op-code)]
-    (if (nil? op)
-      (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code}))
-      nil)
+    (when (nil? op)
+      (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code})))
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
       [cs (assoc machine :cpu after-op)])))
 
@@ -520,7 +517,7 @@
 
 (defop rts [0x60 implied (cycles 6)]
   (let [pulled (stack-pull-pc cpu)]
-    (assoc pulled :pc (inc (:pc pulled)))))
+    (update-in pulled [:pc] inc)))
 
 ;; Branching
 (defn branch-if [cpu mode predicate]
@@ -551,7 +548,7 @@
 (defop nop [0xea implied (cycles 2)] cpu)
 
 (defop brk [0x00 implied (cycles 7)]
-  (let [pc (+ 1 (:pc cpu))
+  (let [pc (inc (:pc cpu))
         [interrupt after-read] (interrupt-vector cpu)
         high (high-byte pc)
         low  (low-byte pc)]
@@ -802,8 +799,7 @@
   (let [[operand after-io] (io-> cpu (mode-read address-mode))
         after-and (logical-op after-io address-mode operand bit-and)
         carried? (bit-set? (:a after-and) 7)]
-    (-> after-and
-      (set-flag carry-flag carried?))))
+    (set-flag after-and carry-flag carried?)))
 
 (defop *alr [0x4b immediate (cycles 2)]
   (let [[operand after-io] (io-> cpu (mode-read address-mode))
@@ -842,12 +838,11 @@
 
 (defn- sh*-op [cpu address-mode reg]
   (let [[addr after-io] (io-> cpu (address-mode))
-        high (unsigned-byte (+ 1 (high-byte addr)))
+        high (unsigned-byte (inc (high-byte addr)))
         result (bit-and (reg after-io) high)
         [_ after-write] (io-> after-io
                               (mode-write address-mode result))]
-    (-> after-write
-      (advance-pc address-mode))))
+    (advance-pc after-write address-mode)))
 
 (defop *shy [0x9c absolute-x (cycles 5)] (sh*-op cpu address-mode :y))
 (defop *shx [0x9e absolute-y (cycles 5)] (sh*-op cpu address-mode :x))

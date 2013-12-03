@@ -14,7 +14,7 @@
       (format "%s CYC:%3d" (debug-step (:cpu nes)) cycles)
       (lazy-seq
         (let [[cs new-nes] (cpu-step nes)]
-          (recur new-nes (+ total-cycles cs)))))))
+          (lazy-debug-w-cycles new-nes (+ total-cycles cs)))))))
 
 (defn- lazy-debug [nes]
   (lazy-debug-w-cycles nes 0))
@@ -55,11 +55,10 @@
                                         (read-nintendulator-log "assets/nestest.log")
                                         (lazy-debug machine)
                                         (range))]
-      (if (not= expected actual)
+      (when (not= expected actual)
         (let [[e a] (pretty-diff expected actual)]
           (println (clojure.string/join "\n" (get-context line)))
           (println (format "%-5d expected: %s" line e))
           (println (format "%-5d actual  : %s" line a))
-          (System/exit 1))
-        nil))
+          (System/exit 1))))
     (println "All systems nominal")))

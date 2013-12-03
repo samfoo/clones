@@ -67,7 +67,7 @@
       (mapper-fn rom))))
 
 (defn- bit-mask [n]
-  (if (> n 0)
+  (if (pos? n)
     (bit-or
       (bit-shift-left 1 (dec n))
       (bit-mask (dec n)))
@@ -108,7 +108,7 @@
         prg-banks (nth data 4)
         chr-rom-size (* chr-bank-size (nth data 5))
         chr-banks (nth data 5)
-        chr-ram? (= 0 (nth data 5))
+        chr-ram? (zero? (nth data 5))
         flags-6 (bit-map (nth data 6)
                          :lower-mapper-nibble 4
                          :mirroring-upper 1

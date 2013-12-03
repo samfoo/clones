@@ -17,13 +17,13 @@
   (let [high (high-byte v)
         low (low-byte v)]
     (domonad state-m
-             [a (io-write high (+ 1 addr))
+             [a (io-write high (inc addr))
               b (io-write low addr)]
              b)))
 
 (defn io-read-word [addr]
   (domonad state-m
-           [high (io-read (+ 1 addr))
+           [high (io-read (inc addr))
             low (io-read addr)]
            (bit-or (bit-shift-left high 8) low)))
 

@@ -50,7 +50,7 @@
 (defn- indirect-high-addr [abs-addr]
   (if (= 0xff (bit-and 0xff abs-addr))
     (bit-and abs-addr 0xff00)
-    (+ 1 abs-addr)))
+    (inc abs-addr)))
 
 (defn indirect []
   (with-io-> [abs-addr (absolute)
@@ -68,7 +68,7 @@
 (defn indirect-indexed-addr []
   (with-io-> [cpu (fetch-state)
               pointer (io-read (:pc cpu))
-              high (io-read (unsigned-byte (+ pointer 1)))
+              high (io-read (unsigned-byte (inc pointer)))
               low (io-read (unsigned-byte pointer))]
     (bit-or (bit-shift-left high 8) low)))
 
