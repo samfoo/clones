@@ -19,7 +19,7 @@ through states? Eleventy.
 
 ### So... you want to join the immutability cult?
 
-*[Graphics and GUI are coming soon]*
+    $ lein with-profile gui run [rom]
 
 ### How do I test this monstrosity?
 
@@ -38,5 +38,5 @@ The nestest binary can be run and verified against the known-good
 [Blargg's](http://blargg.8bitalley.com/nes-tests/) CPU tests can be run
 headlessly and report results:
 
-    $ lein with-profile blargg run [rom file...]
+    $ lein with-profile blargg run [rom]
 
