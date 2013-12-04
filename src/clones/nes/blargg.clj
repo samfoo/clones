@@ -25,11 +25,11 @@
 (defn- current-result-text [nes]
   (read-null-term-str-from nes 0x6004))
 
-(defn- await-test-finish [nes i]
+(defn- await-test-finish [nes]
   (let [cpu (:cpu nes)
         status (io-debug-> cpu (io-read 0x6000))]
     (if (= status 0x80)
-      (recur (system-step nes) (inc i))
+      (recur (system-step nes))
       nes)))
 
 (defn -main [& args]
@@ -37,6 +37,6 @@
     (time
       (let [nes (init-nes rom)
             pre-test-nes (await-test-start nes)
-            result-state (await-test-finish pre-test-nes 0)]
+            result-state (await-test-finish pre-test-nes)]
         (println (current-result-text result-state))))))
 
