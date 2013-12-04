@@ -6,13 +6,17 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/algo.monads "0.1.4"]
                  [clansi "1.0.0"]]
-  :profiles {:user {:plugins [[lein-kibit "0.0.8"]]}
-             :dev {:dependencies [[speclj "2.5.0"]]}
+  :profiles {:dev {:dependencies [[speclj "2.5.0"]]}
+
              :nestest {:main clones.nes.nestest
                        :uberjar-name "nestest.jar"}
+
              :blargg {:main clones.nes.blargg
                       :uberjar-name "blargg-tester.jar"}
-             :emu {:main clones.nes
-                   :uberjar-name "clones.jar"}}
+
+             :gui {:dependencies [[seesaw "1.4.4"]]
+                   :main clones.gui
+                   :aot :all
+                   :uberjar-name "gui.jar"}}
   :plugins [[speclj "2.7.0"]]
   :test-paths ["spec"])
