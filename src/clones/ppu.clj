@@ -187,6 +187,7 @@
 
    ^int scanline
    ^int tick
+   ^int frame-count
 
    background-frame-buffer
    memory]
@@ -206,7 +207,7 @@
         false false false true
         0 init-oam-ram
         0 0 0 0
-        -1 0
+        -1 0 0
         (vec (repeat (* 256 240) 0))
         bus))
 
@@ -231,11 +232,14 @@
       (let [request-nmi? (and
                            (:nmi-on-vblank? ppu)
                            (not (:suppress-nmi? ppu)))
-            ppu-after-vblank (-> ppu
-                               (assoc :vblank-started?
-                                      (not (:suppress-vblank? ppu)))
-                               (merge {:suppress-vblank? false
-                                       :suppress-nmi? false}))
+            frame-count (if (rendering-enabled? ppu)
+                          (inc (:frame-count ppu))
+                          (:frame-count ppu))
+            ppu-after-vblank (merge ppu
+                                    {:vblank-started? (not (:suppress-vblank? ppu))
+                                     :frame-count frame-count
+                                     :suppress-vblank? false
+                                     :suppress-nmi? false})
             nmi (when request-nmi? :nmi)]
         (merge machine {:ppu ppu-after-vblank :interrupt nmi}))
       machine)))

@@ -83,6 +83,16 @@
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
+        (describe "when rendering is enabled"
+          (it "should increment the framecount"
+            (let [machine {:ppu (merge ppu {:tick 1
+                                            :scanline 240
+                                            :frame-count 0
+                                            :show-background? true})}
+                  new-machine (ppu-step machine)]
+              (should= 1 (get-in new-machine [:ppu :frame-count])))))
+
+
         (describe "when NMI on vblank control is turned off"
           (it "should not request an NMI"
             (let [machine {:ppu (merge ppu {:tick 1
