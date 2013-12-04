@@ -23,6 +23,30 @@
       (let [after-write (second (device-write bus 0xff 0x3f00))]
         (should= 0xff (first (device-read after-write 0x3f00)))))
 
+    (it "should mirror writes at $3F10/$3F14/$3F18/$3F1C to $3F00/$3F04/$3F08/$3F0C"
+      (let [w (fn [b v addr] (second (device-write b v addr)))
+            bus-with-value (-> bus
+                             (w 0xff 0x3f10)
+                             (w 0xf4 0x3f14)
+                             (w 0xf8 0x3f18)
+                             (w 0xfc 0x3f1c))]
+        (should= 0xf4 (first (device-read bus-with-value 0x3f04)))
+        (should= 0xf8 (first (device-read bus-with-value 0x3f08)))
+        (should= 0xfc (first (device-read bus-with-value 0x3f0c)))
+        (should= 0xff (first (device-read bus-with-value 0x3f00)))))
+
+    (it "should mirror reads at $3F10/$3F14/$3F18/$3F1C to $3F00/$3F04/$3F08/$3F0C"
+      (let [bus-with-value (assoc bus
+                                  :palette-ram
+                                  {0   0xff
+                                   4   0xf4
+                                   8   0xf8
+                                   0xc 0xfc})]
+        (should= 0xf4 (first (device-read bus-with-value 0x3f14)))
+        (should= 0xf8 (first (device-read bus-with-value 0x3f18)))
+        (should= 0xfc (first (device-read bus-with-value 0x3f1c)))
+        (should= 0xff (first (device-read bus-with-value 0x3f10)))))
+
     (it "should mirror every 32 bytes when reading"
       (let [bus-with-value (assoc bus
                                   :palette-ram

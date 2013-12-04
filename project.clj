@@ -12,6 +12,7 @@
                        :uberjar-name "nestest.jar"}
 
              :blargg {:main clones.nes.blargg
+                      :aot :all
                       :uberjar-name "blargg-tester.jar"}
 
              :gui {:dependencies [[seesaw "1.4.4"]]

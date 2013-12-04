@@ -27,12 +27,17 @@
   (let [relative-addr (bit-and 0xfff addr)]
     (bus-write-device bus :nametables v relative-addr)))
 
+(defn- palette-mirrored-addr [addr]
+  (if (mod addr 4)
+    (bit-and 0xf addr)
+    (bit-and 0x1f addr)))
+
 (defn- bus-read-palette-ram [bus addr]
-  (let [relative-addr (bit-and 0x1f addr)]
+  (let [relative-addr (palette-mirrored-addr addr)]
     (bus-read-device bus :palette-ram relative-addr)))
 
 (defn- bus-write-palette-ram [bus v addr]
-  (let [relative-addr (bit-and 0x1f addr)]
+  (let [relative-addr (palette-mirrored-addr addr)]
     (bus-write-device bus :palette-ram v relative-addr)))
 
 (defn- bus-read [bus addr]
