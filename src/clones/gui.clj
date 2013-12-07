@@ -4,7 +4,8 @@
             [clones.cpu.debug :refer :all]
             [seesaw.graphics  :as    graphics]
             [seesaw.core      :refer :all]
-            [seesaw.bind      :as     b]))
+            [seesaw.bind      :as     b])
+  (:import [java.awt Graphics2D RenderingHints]))
 
 (defn- run [nes-atom nes]
   (let [rendered-frame-id (get-in @nes-atom [:ppu :frame-count])
@@ -28,11 +29,13 @@
     2 :green
     3 :blue))
 
-
 (defn render-buffer [g frame-buffer]
   (doseq [i (range (* 256 240))]
+    (doto g
+      (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_OFF))
+
     (graphics/draw g
-     (graphics/rect (mod i 256) (/ i 240) 1)
+     (graphics/rect (mod i 256) (/ i 256) 1)
      (graphics/style :background (get-color (get frame-buffer i))))))
 
 (defn- paint [c g nes]
@@ -43,12 +46,14 @@
   (native!)
   (let [rom (first args)
         nes (atom (init-nes rom))
+
         screen (canvas :id :screen
                        :paint (fn [c g] (paint c g @nes))
                        :background :black)
+
         window (frame :title "Clones"
-                      :width 512
-                      :height 480
+                      :width 256
+                      :height 256
                       :visible? true
                       :on-close :dispose
                       :content screen)]
