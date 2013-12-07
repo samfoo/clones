@@ -112,12 +112,14 @@
         return-pc (:pc cpu)
         high (high-byte return-pc)
         low  (low-byte return-pc)
+        flags (:p cpu)
         [interrupt after-read] (nmi-vector cpu)]
     (-> machine
       (assoc :interrupt nil)
       (assoc :cpu (-> after-read
                     (stack-push high)
                     (stack-push low)
+                    (stack-push flags)
                     (assoc :pc interrupt))))))
 
 (defn cpu-step [machine]

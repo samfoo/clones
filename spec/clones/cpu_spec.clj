@@ -30,6 +30,13 @@
       (should-not (contains? (meta new-cpu) :meta))))
 
   (describe "executing an NMI"
+    (it "should push the flags to the stack"
+      (let [machine {:cpu (assoc cpu :p 0xee)}
+            new-machine (perform-nmi machine)
+            new-cpu (:cpu new-machine)
+            flags (peek-stack-n new-cpu 0)]
+        (should= 0xee flags)))
+
     (it "should set the program counter to the NMI vector at $fffa"
       (let [machine {:cpu (second (io-> cpu
                                         (io-write-word 0xbeef 0xfffa)))}
@@ -42,8 +49,8 @@
       (let [machine {:cpu (assoc cpu :pc 0xffee)}
             new-machine (perform-nmi machine)
             new-cpu (:cpu new-machine)
-            low (peek-stack-n new-cpu 0)
-            high (peek-stack-n new-cpu 1)]
+            low (peek-stack-n new-cpu 1)
+            high (peek-stack-n new-cpu 2)]
         (should= 0xff high)
         (should= 0xee low))))
 
