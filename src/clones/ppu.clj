@@ -368,7 +368,11 @@
         (assoc machine :ppu after-scanline))
       machine)))
 
-(defn- advance-scanline [ppu]
+(defn- advance-odd-scanline [ppu]
+  (merge ppu {:scanline 0
+              :tick 0}))
+
+(defn- advance-normal-scanline [ppu]
   (let [scanline (:scanline ppu)
         tick (:tick ppu)]
     (if (= 340 tick)
@@ -377,6 +381,18 @@
                               -1
                               (inc scanline))})
       (assoc ppu :tick (inc tick)))))
+
+(defn- advance-scanline [ppu]
+  (let [scanline (:scanline ppu)
+        tick (:tick ppu)
+        frame-count (:frame-count ppu)]
+    (if (and
+          (= 339 tick)
+          (= -1 scanline)
+          (odd? frame-count)
+          (:show-background? ppu))
+      (advance-odd-scanline ppu)
+      (advance-normal-scanline ppu))))
 
 (defn ppu-step [machine]
   (let [ppu (:ppu machine)

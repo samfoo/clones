@@ -262,6 +262,41 @@
             (should-not (:vblank-started? new-ppu))))))
 
     (describe "the pre-render scanline (-1)"
+      (describe "tick 339"
+        (describe "when on an even frame"
+          (it "should advance to tick 340, scanline -1 as normal"
+            (let [ppu-odd (merge ppu {:show-background? true
+                                      :frame-count 2
+                                      :scanline -1
+                                      :tick 339})
+                  machine {:ppu ppu-odd}
+                  new-ppu (ppu-step-debug machine)]
+              (should= -1 (:scanline new-ppu))
+              (should= 340 (:tick new-ppu)))))
+
+        (describe "when on an odd frame"
+          (describe "when background rendering is disabled"
+            (it "should advance to tick 340, scanline -1 as normal"
+              (let [ppu-odd (merge ppu {:show-background? false
+                                        :frame-count 1
+                                        :scanline -1
+                                        :tick 339})
+                    machine {:ppu ppu-odd}
+                    new-ppu (ppu-step-debug machine)]
+                (should= -1 (:scanline new-ppu))
+                (should= 340 (:tick new-ppu)))))
+
+          (describe "when background rendering is enabled"
+            (it "should advance to tick 0, scanline 0 instead of tick 340, scanline -1"
+              (let [ppu-odd (merge ppu {:show-background? true
+                                        :frame-count 1
+                                        :scanline -1
+                                        :tick 339})
+                    machine {:ppu ppu-odd}
+                    new-ppu (ppu-step-debug machine)]
+                (should= 0 (:scanline new-ppu))
+                (should= 0 (:tick new-ppu)))))))
+
       (describe "tick 304"
         (describe "when neither sprite or background rendering is enabled"
           (it "should not copy the vram latch to the vram addr"
