@@ -144,7 +144,8 @@
        4 (oam-data-write ppu v)
        5 (scroll-write ppu v)
        6 (addr-write ppu v)
-       7 (data-write ppu v))])
+       7 (data-write ppu v)
+       ppu)])
 
 (defn register-read [ppu addr]
   (condp = addr
@@ -219,8 +220,7 @@
     (condp = (:tick ppu)
       1 (assoc machine :ppu
                (merge ppu {:sprite-0-hit? false
-                           :sprite-overflow? false
-                           :vblank-started? false}))
+                           :sprite-overflow? false}))
       304 (if (rendering-enabled? ppu)
             (assoc-in machine [:ppu :vram-addr] (:vram-latch ppu))
             machine)
@@ -390,6 +390,11 @@
                     (< scanline 240)) (step-visible-scanline machine)
 
                   (= 240 scanline) (step-post-render-scanline machine)
+
+                  (and
+                    (= 260 scanline)
+                    (= 1 tick)) (assoc-in machine [:ppu :vblank-started?] false)
+
                   :else machine)
         after-advancing (advance-scanline (:ppu machine))]
     (assoc machine :ppu after-advancing)))

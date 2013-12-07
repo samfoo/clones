@@ -251,6 +251,16 @@
                   new-ppu (ppu-step-debug machine)]
               (should= 0x2000 (:vram-addr new-ppu)))))))
 
+    (describe "the final vblanking scanline (260)"
+      (describe "tick 1"
+        (it "should clear the vblank started flag"
+          (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
+                                                 :scanline 260
+                                                 :tick 1})
+                machine {:ppu ppu-w-vblank-started}
+                new-ppu (ppu-step-debug machine)]
+            (should-not (:vblank-started? new-ppu))))))
+
     (describe "the pre-render scanline (-1)"
       (describe "tick 304"
         (describe "when neither sprite or background rendering is enabled"
@@ -276,14 +286,6 @@
                 (should= 0xbeef (:vram-addr new-ppu)))))))
 
       (describe "tick 1"
-        (it "should clear the vblank started flag"
-          (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
-                                                 :scanline -1
-                                                 :tick 1})
-                machine {:ppu ppu-w-vblank-started}
-                new-ppu (ppu-step-debug machine)]
-            (should-not (:vblank-started? new-ppu))))
-
         (it "should clear the sprite overflow flag"
           (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
                                                   :scanline -1
