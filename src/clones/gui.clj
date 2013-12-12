@@ -36,7 +36,7 @@
       (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_OFF))
 
     (graphics/draw g
-     (graphics/rect (mod i 256) (/ i 256) 1)
+     (graphics/rect (mod i 256) (int (/ i 256)) 1)
      (graphics/style :background (get-color (get frame-buffer i))))))
 
 (defn- paint [c g nes]
