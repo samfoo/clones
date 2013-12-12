@@ -29,7 +29,7 @@
   (let [^ints chr-data (:chr-data nrom)]
     (if (and (> 0xfff addr) (> (:chr-banks nrom) 1))
       [(aget chr-data addr) nrom]
-      [(aget chr-data (bit-and 0xfff addr)) nrom])))
+      [(aget chr-data addr) nrom])))
 
 (defrecord NROM [^int prg-banks
                  ^ints prg-rom
