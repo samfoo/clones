@@ -54,24 +54,54 @@
         (graphics/rect (+ x col) (+ y row) 1)
         (graphics/style :background (get-color pixel))))))
 
-(defn- paint-pattern-table-tiles [c g tiles x-offset y-offset]
+(defn- paint-pattern-table-tiles [c g tiles]
   (doseq [i (range 256)]
     (let [tile (nth tiles i)
-          x (+
-              x-offset
-              (mod i 16)
-              (* 8 (mod i 16)))
-          y (+
-              y-offset
-              (int (/ i 16))
-              (* 8 (int (/ i 16))))]
+          x (* 8 (mod i 16))
+          y (* 8 (int (/ i 16)))]
       (paint-pattern-table-tile c g tile x y))))
 
-(defn- paint-pattern-tables [c g nes]
-  (let [left-tiles (pattern-table-tiles (:ppu nes) :left)
-        right-tiles (pattern-table-tiles (:ppu nes) :right)]
-    (paint-pattern-table-tiles c g left-tiles 0 0)
-    (paint-pattern-table-tiles c g right-tiles 150 0)))
+(defn- paint-pattern-table [c g nes which-table]
+  (let [tiles (pattern-table-tiles (:ppu nes) which-table)]
+    (paint-pattern-table-tiles c g tiles)))
+
+(defn- show-pattern-table-window! [nes]
+  (let [pattern-table-left (canvas :id :pattern-table-left
+                                   :preferred-size [(* 16 8 2) :by (* 16 8 2)]
+                                   :paint (fn [c g]
+                                            (graphics/scale g 2)
+                                            (paint-pattern-table c g @nes :left)))
+
+        pattern-table-right (canvas :id :pattern-table-right
+                                    :preferred-size [(* 16 8 2) :by (* 16 8 2)]
+                                    :paint (fn [c g]
+                                             (graphics/scale g 2)
+                                             (paint-pattern-table c g @nes :right)))
+
+        pattern-tables (border-panel
+                         :hgap 5
+                         :east (border-panel
+                                 :vgap 5
+                                 :north (label
+                                          :text "Left $0000"
+                                          :halign :center)
+                                 :south pattern-table-left)
+                         :west (border-panel
+                                 :vgap 5
+                                 :north (label
+                                          :text "Right $1000"
+                                          :halign :center)
+                                 :south pattern-table-right))
+
+        pattern-tables-window (frame :title "Clones - Pattern Tables"
+                                     :visible? true
+                                     :resizable? false
+                                     :content (border-panel
+                                                :center pattern-tables
+                                                :hgap 10
+                                                :border 10))]
+    (pack! pattern-tables-window)))
+
 
 (defn -main [& args]
   (native!)
@@ -82,25 +112,15 @@
                        :paint (fn [c g] (paint c g @nes))
                        :background :black)
 
-        pattern-tables (canvas :id :pattern-tables
-                               :paint (fn [c g] (paint-pattern-tables c g @nes))
-                               :background :black)
-
-        pattern-tables-window (frame :title "Clones - Pattern Tables"
-                                     :width 294
-                                     :height 200
-                                     :visible? true
-                                     :content pattern-tables)
-
         screen-window (frame :title "Clones"
                              :width 256
                              :height 256
                              :visible? true
                              :on-close :dispose
                              :content screen)]
+    (show-pattern-table-window! nes)
     (run-machine nes)
     (b/bind
       nes
       (b/b-do [_]
-        (repaint! pattern-tables)
         (repaint! screen)))))
