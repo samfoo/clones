@@ -19,7 +19,12 @@ through states? Eleventy.
 
 ### So... you want to join the immutability cult?
 
+Be advised that the current performance is about 1 frame per second on a new
+15" Macbook Retina. Totally playable speed.
+
     $ lein with-profile gui run [rom]
+
+![Super Awesome Cool Screenshot](https://raw.github.com/samfoo/clones/master/assets/mariobros.png)
 
 ### How do I test this monstrosity?
 
