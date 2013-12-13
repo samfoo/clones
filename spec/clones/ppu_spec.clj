@@ -1,7 +1,8 @@
 (ns clones.ppu-specj
   (:require [speclj.core   :refer :all]
             [clones.device :refer :all]
-            [clones.ppu    :refer :all]))
+            [clones.ppu    :refer :all])
+  (import [java.awt.image BufferedImage]))
 
 (def ppu (make-ppu {}))
 (def ppu-latch-off (assoc ppu :write-latch? false))
@@ -140,7 +141,7 @@
 
     (describe "the visible scanlines (0-239)"
       (describe "tick 256"
-        (def frame-buffer-bg (vec (repeat (* 256 240) 0)))
+        (def frame-buffer-bg (BufferedImage. 256 240 BufferedImage/TYPE_INT_ARGB))
 
         (def memory {;; Pattern table has 16 bytes, these two combine to
                      ;; first row of the pattern.
@@ -165,6 +166,14 @@
                                                 :tick 256
                                                 :memory memory}))
 
+        (defn should-match-line [v bi line]
+          (doseq [x (range (count v))]
+            (should= (nth v x) (bit-and 0xffffffff (.getRGB bi x line)))))
+
+        (def red 0xffff0000)
+        (def green 0xff00ff00)
+        (def blue 0xff0000ff)
+
         (describe "when background rendering is disabled"
           (it "shouldn't render anything to the frame buffer"
             (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
@@ -173,9 +182,7 @@
                                                    :vram-addr 0})
                   machine {:ppu ppu-at-end-of-scanline-0}
                   new-ppu (ppu-step-debug machine)]
-              (should=
-                [0 0 0 0 0 0 0 0]
-                (take 8 (:background-frame-buffer new-ppu))))))
+              (should-match-line [0 0 0 0 0 0 0 0] (:background-frame-buffer new-ppu) 0))))
 
         (describe "when background rendering is enabled"
           (it "should add the background tile rows to the second scanline"
@@ -184,11 +191,9 @@
                                                    :vram-addr 0x1000})
                   machine {:ppu ppu-at-end-of-scanline-1}
                   new-ppu (ppu-step-debug machine)]
-              (should=
-                [1 0 0 0 0 0 0 2]
-                (->> (:background-frame-buffer new-ppu)
-                  (drop 256)
-                  (take 8)))))
+              (should-match-line [red 0 0 0 0 0 0 green]
+                                 (:background-frame-buffer new-ppu)
+                                 1)))
 
           (it "should add the background tile rows to the first scanline"
             (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
@@ -196,9 +201,9 @@
                                                    :vram-addr 0})
                   machine {:ppu ppu-at-end-of-scanline-0}
                   new-ppu (ppu-step-debug machine)]
-              (should=
-                [3 0 1 3 3 3 2 0]
-                (take 8 (:background-frame-buffer new-ppu))))))
+              (should-match-line [blue 0 red blue blue blue green 0]
+                                 (:background-frame-buffer new-ppu)
+                                 0))))
 
         (describe "when neither sprite or background rendering is enabled"
           (it "shouldn't increment Y"

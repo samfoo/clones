@@ -31,13 +31,7 @@
     3 :blue))
 
 (defn render-buffer [g frame-buffer]
-  (doseq [i (range (* 256 240))]
-    (doto g
-      (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_OFF))
-
-    (graphics/draw g
-     (graphics/rect (mod i 256) (int (/ i 256)) 1)
-     (graphics/style :background (get-color (get frame-buffer i))))))
+  (.drawImage g frame-buffer 0 0 256 240 nil))
 
 (defn- paint [c g nes]
   (let [frame-buffer (get-in nes [:ppu :background-frame-buffer])]

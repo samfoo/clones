@@ -1,6 +1,7 @@
 (ns clones.ppu
   (:require [clones.device :refer :all]
-            [clones.byte   :refer :all]))
+            [clones.byte   :refer :all])
+  (import [java.awt.image BufferedImage]))
 
 (defn control-write [ppu v]
   (let [vram-latch (bit-and (:vram-latch ppu) 0xf3ff)
@@ -190,7 +191,7 @@
    ^int tick
    ^int frame-count
 
-   background-frame-buffer
+   ^BufferedImage background-frame-buffer
    memory]
 
   Device
@@ -209,7 +210,7 @@
         0 init-oam-ram
         0 0 0 0
         -1 0 0
-        (vec (repeat (* 256 240) 0))
+        (BufferedImage. 256 240 BufferedImage/TYPE_INT_ARGB)
         bus))
 
 (defn- rendering-enabled? [ppu]
@@ -330,6 +331,13 @@
              tile-index))
          (range 32))))
 
+(defn- get-color [pixel]
+  (condp = pixel
+    0 0
+    1 0xffff0000
+    2 0xff00ff00
+    3 0xff0000ff))
+
 (defn- render-background-for-current-scanline [ppu]
   (let [scanline (:scanline ppu)
         frame-buffer (:background-frame-buffer ppu)
@@ -337,17 +345,11 @@
         tile-indices (pattern-tile-indices-for-current-scanline ppu)
         scanline-pattern (vec (flatten
                                 (map #(pattern-tile-row ppu % fine-y)
-                                     tile-indices)))
-        scanlines-before (subvec frame-buffer
-                                 0 (* 256 scanline))
-        scanlines-after (subvec frame-buffer
-                                (* 256 (inc scanline)))
-
-        new-frame-buffer (-> []
-                           (into scanlines-before)
-                           (into scanline-pattern)
-                           (into scanlines-after))]
-    (assoc ppu :background-frame-buffer new-frame-buffer)))
+                                     tile-indices)))]
+    (doseq [x (range 256)]
+      (let [color-index (nth scanline-pattern x)]
+        (.setRGB frame-buffer x scanline (get-color color-index)))))
+  ppu)
 
 (defn- maybe-render-background [ppu]
   (if (:show-background? ppu)
