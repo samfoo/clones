@@ -118,9 +118,6 @@
                              :visible? true
                              :on-close :dispose
                              :content screen)]
-    (show-pattern-table-window! nes)
+    ;; (show-pattern-table-window! nes)
     (run-machine nes)
-    (b/bind
-      nes
-      (b/b-do [_]
-        (repaint! screen)))))
+    (timer (fn [_] (repaint! screen) 20))))
