@@ -16,6 +16,10 @@
                       :aot :all
                       :uberjar-name "blargg-tester.jar"}
 
+             :fps {:main clones.fps
+                   :aot :all
+                   :uberjar-name "fps.jar"}
+
              :gui {:main clones.gui
                    :aot :all
                    :uberjar-name "gui.jar"}}
