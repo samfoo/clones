@@ -3,21 +3,6 @@
             [clones.cpu.addressing :refer :all]
             [clones.byte           :refer :all]))
 
-(def op-codes {})
-(def ops {})
-
-(defn op [n] (n ops))
-
-(defrecord CPU [^int a
-                ^int x
-                ^int y
-                ^int sp
-                ^int p
-                ^int pc
-                memory])
-
-(defn negative? [b] (== 0x80 (bit-and b 0x80)))
-
 (def carry-flag 0x01)
 (def zero-flag 0x02)
 (def interrupt-flag 0x04)
@@ -27,6 +12,7 @@
 (def overflow-flag 0x40)
 (def negative-flag 0x80)
 
+(defn negative? [b] (== 0x80 (bit-and b 0x80)))
 (defn flag? [flags mask] (= mask (bit-and flags mask)))
 (defn carry-flag? [cpu] (flag? (:p cpu) carry-flag))
 (defn zero-flag? [cpu] (flag? (:p cpu) zero-flag))
@@ -41,32 +27,33 @@
       (assoc cpu :p (bit-or flags flag))
       (assoc cpu :p (bit-and flags (bit-not flag))))))
 
-(defmacro defop [op-name opcodes action]
-  (let [fn-args [^CPU 'cpu 'address-mode]]
-    `(let [~'op-fn (fn ~fn-args
-                     (let [~'cpu (with-meta ~'cpu {})]
-                       ~action))]
-       (def ops (assoc ops (keyword '~op-name) ~'op-fn))
-       (def op-codes
-         (reduce (fn [~'m ~'op]
-                   (assoc ~'m
-                          (first ~'op)
-                          (with-meta ~'op-fn {:address-mode (second ~'op)
-                                              :cycles (nth ~'op 2)
-                                              :name (name '~op-name)})))
-                 op-codes
-                 (partition 3 ~opcodes))))))
+(def ops (object-array 0x100))
+(def timings (object-array 0x100))
 
-(defn make-cpu [bus] (CPU. 0 0 0 0xfd 0x24 0 bus))
+(defn op-by-opcode [c] (aget ops c))
+(defn timing-by-opcode [c] (aget timings c))
+
+(defmacro defop [n options & body]
+  `(doseq [[~'code ~'mode ~'timing] (partition 3 ~options)]
+     (defn ~(symbol (str \- n)) [~'cpu ~'address-mode]
+       ~@body)
+
+     (aset timings ~'code (fn cycles-wrapped [~'cpu-before ~'cpu-after]
+                            (~'timing ~'cpu-before ~'cpu-after ~'mode)))
+
+     (aset ops ~'code (fn ~n [~'cpu]
+                        (~(symbol (str \- n)) ~'cpu ~'mode)))))
+
+(defn make-cpu [bus] {:a  0
+                      :x  0
+                      :y  0
+                      :sp 0xfd
+                      :p  0x24
+                      :pc 0
+                      :memory bus})
 
 (defn- inc-pc [cpu]
   (update-in cpu [:pc] inc))
-
-(defn execute-with-timing [cpu op]
-  (let [{:keys [address-mode name cycles]} (meta op)
-        after-op (op cpu address-mode)
-        cs (cycles cpu after-op address-mode)]
-    [cs after-op]))
 
 (defn- advance-pc [cpu mode]
   (update-in cpu [:pc] + (mode-size mode)))
@@ -122,13 +109,19 @@
                     (stack-push flags)
                     (assoc :pc interrupt))))))
 
+(defn execute-with-timing [cpu op timing]
+  (let [after-op (op cpu)
+        cs (timing cpu after-op)]
+    [cs after-op]))
+
 (defn cpu-step [machine]
   (let [cpu (:cpu machine)
         [op-code after-read] (io-> cpu (io-read (:pc cpu)))
-        op (get op-codes op-code)]
+        op (op-by-opcode op-code)
+        timing (timing-by-opcode op-code)]
     (when (nil? op)
       (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code})))
-    (let [[cs after-op] (execute-with-timing (inc-pc after-read) op)]
+    (let [[cs after-op] (execute-with-timing (inc-pc after-read) op timing)]
       [cs (assoc machine :cpu after-op)])))
 
 (defn- different-pages? [a1 a2]
@@ -716,7 +709,9 @@
     (advance-pc after-io address-mode)))
 
 (defop *sbc [0xeb immediate (cycles 2)]
-  ((op :sbc) cpu address-mode))
+  (advance-pc cpu address-mode))
+  ;; TODO: Fix this to work with the new op function datastructure
+  ;; ((op :sbc) cpu address-mode))
 
 (defop *dcp [0xc3 indexed-indirect (cycles 8)
              0xd3 indirect-indexed (cycles 8)
