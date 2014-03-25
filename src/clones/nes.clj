@@ -14,9 +14,11 @@
                 interrupt-requests])
 
 (defn- catch-ppu-up [nes cycles]
-  (if (zero? cycles)
-    nes
-    (catch-ppu-up (ppu-step nes) (dec cycles))))
+  (loop [system nes
+         remaining-cycles cycles]
+    (if (zero? remaining-cycles)
+      system
+      (recur (ppu-step system) (- remaining-cycles 1)))))
 
 (defn- handle-interrupts [nes]
   (condp = (:interrupt nes)
