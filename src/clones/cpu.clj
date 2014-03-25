@@ -30,8 +30,8 @@
 (def ops (object-array 0x100))
 (def timings (object-array 0x100))
 
-(defn op-by-opcode [c] (aget ops c))
-(defn timing-by-opcode [c] (aget timings c))
+(defn op-by-opcode [c] (aget ^objects ops c))
+(defn timing-by-opcode [c] (aget ^objects timings c))
 
 (defmacro defop [n options & body]
   `(doseq [[~'code ~'mode ~'timing] (partition 3 ~options)]
@@ -56,7 +56,7 @@
   (update-in cpu [:pc] inc))
 
 (defn- advance-pc [cpu mode]
-  (update-in cpu [:pc] + (mode-size mode)))
+  (assoc cpu :pc (+ (:pc cpu) (mode-size mode))))
 
 (defn stack-push [cpu v]
   (let [pointer (+ 0x100 (:sp cpu))
@@ -119,8 +119,8 @@
         [op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (op-by-opcode op-code)
         timing (timing-by-opcode op-code)]
-    (when (nil? op)
-      (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code})))
+    ;; (when (nil? op)
+    ;;   (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code})))
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op timing)]
       [cs (assoc machine :cpu after-op)])))
 
