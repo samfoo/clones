@@ -53,7 +53,7 @@
                       :memory bus})
 
 (defn- inc-pc [cpu]
-  (update-in cpu [:pc] inc))
+  (assoc cpu :pc (+ 1 (:pc cpu))))
 
 (defn- advance-pc [cpu mode]
   (assoc cpu :pc (+ (:pc cpu) (mode-size mode))))

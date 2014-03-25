@@ -338,18 +338,18 @@
     2 0xff00ff00
     3 0xff0000ff))
 
-(defn- render-background-for-current-scanline [ppu]
-  (let [scanline (:scanline ppu)
-        frame-buffer (:background-frame-buffer ppu)
-        fine-y (bit-shift-right (:vram-addr ppu) 12)
-        tile-indices (pattern-tile-indices-for-current-scanline ppu)
-        scanline-pattern (vec (flatten
-                                (map #(pattern-tile-row ppu % fine-y)
-                                     tile-indices)))]
-    (doseq [x (range 256)]
-      (let [color-index (nth scanline-pattern x)]
-        (.setRGB frame-buffer x scanline (get-color color-index)))))
-  ppu)
+(defn- render-background-for-current-scanline [ppu] ppu)
+  ;; (let [scanline (:scanline ppu)
+  ;;       frame-buffer (:background-frame-buffer ppu)
+  ;;       fine-y (bit-shift-right (:vram-addr ppu) 12)
+  ;;       tile-indices (pattern-tile-indices-for-current-scanline ppu)
+  ;;       scanline-pattern (vec (flatten
+  ;;                               (map #(pattern-tile-row ppu % fine-y)
+  ;;                                    tile-indices)))]
+  ;;   (doseq [x (range 256)]
+  ;;     (let [color-index (nth scanline-pattern x)]
+  ;;       (.setRGB frame-buffer x scanline (get-color color-index)))))
+  ;; ppu)
 
 (defn- maybe-render-background [ppu]
   (if (:show-background? ppu)

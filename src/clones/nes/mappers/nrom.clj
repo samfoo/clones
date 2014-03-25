@@ -12,11 +12,11 @@
               (assoc ram addr v))]))
 
 (defn- nrom-read-prg-rom [nrom addr]
-  (let [relative-addr (- addr 0x8000)
+  (let [^int num-banks (:prg-banks nrom)
         ^ints prg-rom (:prg-rom nrom)]
-    (if (and (> relative-addr 0x3fff) (> (:prg-banks nrom) 1))
-      [(aget prg-rom relative-addr) nrom]
-      [(aget prg-rom (bit-and 0x3fff relative-addr)) nrom])))
+    (if (>= addr 0xc000)
+      [(aget ^ints prg-rom (+ (* 0x4000 (- num-banks 1)) (bit-and addr 0x3fff))) nrom]
+      [(aget ^ints prg-rom (bit-and addr 0x3fff)) nrom])))
 
 (defn- nrom-read-chr-ram [nrom addr]
   (let [chr-data (:chr-data nrom)]
@@ -28,8 +28,8 @@
 (defn- nrom-read-chr-rom [nrom addr]
   (let [^ints chr-data (:chr-data nrom)]
     (if (and (> 0xfff addr) (> (:chr-banks nrom) 1))
-      [(aget chr-data addr) nrom]
-      [(aget chr-data addr) nrom])))
+      [(aget ^ints chr-data addr) nrom]
+      [(aget ^ints chr-data addr) nrom])))
 
 (defrecord NROM [^int prg-banks
                  ^ints prg-rom
