@@ -1,5 +1,6 @@
 (ns clones.nes.memory
   (:require [clones.device      :refer :all]
+            [clones.ppu         :refer :all]
             [clones.nes.mappers :refer :all]))
 
 (declare mem-read)
@@ -25,11 +26,11 @@
 
 (defn- mem-read-ppu [bus addr]
   (let [relative-addr (bit-and 7 addr)]
-    (mem-read-device bus :ppu relative-addr)))
+    (ppu-register-read bus relative-addr)))
 
 (defn- mem-write-ppu [bus v addr]
   (let [relative-addr (bit-and 7 addr)]
-    (mem-write-device bus :ppu v relative-addr)))
+    (ppu-register-write bus v relative-addr)))
 
 (defn- mem-read-apu [bus addr]
   (let [relative-addr (bit-and 0x1f addr)]

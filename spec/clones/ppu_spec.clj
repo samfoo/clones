@@ -67,14 +67,14 @@
     (let [ppu (assoc ppu :tick 340)]
       (describe "when the tick is 340"
         (it "should increment the scanline by 1 when it's less than 260"
-          (let [ppu-w-scanline (assoc ppu :scanline -1)
+          (let [ppu-w-scanline (assoc ppu :scanline 0)
+                machine {:ppu ppu-w-scanline}]
+            (should= 1 (:scanline (ppu-step-debug machine)))))
+
+        (it "should reset the scanline to 0 if it's 261"
+          (let [ppu-w-scanline (assoc ppu :scanline 261)
                 machine {:ppu ppu-w-scanline}]
             (should= 0 (:scanline (ppu-step-debug machine)))))
-
-        (it "should reset the scanline to -1 if it's 260"
-          (let [ppu-w-scanline (assoc ppu :scanline 260)
-                machine {:ppu ppu-w-scanline}]
-            (should= -1 (:scanline (ppu-step-debug machine)))))
 
         (it "should reset the tick to 0"
           (should= 0 (:tick (ppu-step-debug {:ppu ppu}))))))
@@ -266,36 +266,36 @@
                 new-ppu (ppu-step-debug machine)]
             (should-not (:vblank-started? new-ppu))))))
 
-    (describe "the pre-render scanline (-1)"
+    (describe "the pre-render scanline (261)"
       (describe "tick 339"
         (describe "when on an even frame"
-          (it "should advance to tick 340, scanline -1 as normal"
+          (it "should advance to tick 340, scanline 261 as normal"
             (let [ppu-odd (merge ppu {:show-background? true
                                       :frame-count 2
-                                      :scanline -1
+                                      :scanline 261
                                       :tick 339})
                   machine {:ppu ppu-odd}
                   new-ppu (ppu-step-debug machine)]
-              (should= -1 (:scanline new-ppu))
+              (should= 261 (:scanline new-ppu))
               (should= 340 (:tick new-ppu)))))
 
         (describe "when on an odd frame"
           (describe "when background rendering is disabled"
-            (it "should advance to tick 340, scanline -1 as normal"
+            (it "should advance to tick 340, scanline 261 as normal"
               (let [ppu-odd (merge ppu {:show-background? false
                                         :frame-count 1
-                                        :scanline -1
+                                        :scanline 261
                                         :tick 339})
                     machine {:ppu ppu-odd}
                     new-ppu (ppu-step-debug machine)]
-                (should= -1 (:scanline new-ppu))
+                (should= 261 (:scanline new-ppu))
                 (should= 340 (:tick new-ppu)))))
 
           (describe "when background rendering is enabled"
-            (it "should advance to tick 0, scanline 0 instead of tick 340, scanline -1"
+            (it "should advance to tick 0, scanline 0 instead of tick 340, scanline 261"
               (let [ppu-odd (merge ppu {:show-background? true
                                         :frame-count 1
-                                        :scanline -1
+                                        :scanline 261
                                         :tick 339})
                     machine {:ppu ppu-odd}
                     new-ppu (ppu-step-debug machine)]
@@ -307,7 +307,7 @@
           (it "should not copy the vram latch to the vram addr"
             (let [ppu-w-latch (merge ppu {:show-sprites? false
                                           :show-background? false
-                                          :scanline -1
+                                          :scanline 261
                                           :tick 304
                                           :vram-latch 0xbeef})
                   machine {:ppu ppu-w-latch}
@@ -318,7 +318,7 @@
           (it "should copy the vram latch to the vram addr"
             (for [flag [:show-background? :show-sprites?]]
               (let [ppu-w-latch (merge ppu {flag true
-                                            :scanline -1
+                                            :scanline 261
                                             :tick 304
                                             :vram-latch 0xbeef})
                     machine {:ppu ppu-w-latch}
@@ -328,7 +328,7 @@
       (describe "tick 1"
         (it "should clear the sprite overflow flag"
           (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
-                                                  :scanline -1
+                                                  :scanline 261
                                                   :tick 1})
                 machine {:ppu ppu-w-sprite-overflow}
                 new-ppu (ppu-step-debug machine)]
@@ -336,7 +336,7 @@
 
         (it "should clear the sprite 0 hit flag"
           (let [ppu-w-sprite-0 (merge ppu {:sprite-0-hit? true
-                                           :scanline -1
+                                           :scanline 261
                                            :tick 1})
                 machine {:ppu ppu-w-sprite-0}
                 new-ppu (ppu-step-debug machine)]
@@ -352,54 +352,54 @@
         (it "should read directly from the PPU's memory bus"
           (let [ppu-w-data (merge ppu {:memory {0x3f00 0xff}
                                        :vram-addr 0x3f00})]
-            (should= 0xff (first (device-read ppu-w-data 7)))))
+            (should= 0xff (first (ppu-read ppu-w-data 7)))))
 
         (it "should fill the vram data buffer with the value read from the bus
             $1000 below the current vram address"
           (let [ppu-w-data (merge ppu {:memory {0x2f00 0xff}
                                        :vram-addr 0x3f00})
-                new-ppu (second (device-read ppu-w-data 7))]
+                new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
 
       (describe "when the address is < $3f00"
         (it "should read the current value of the vram data buffer"
-          (let [result (first (device-read (assoc ppu :vram-data-buffer 0xee) 7))]
+          (let [result (first (ppu-read (assoc ppu :vram-data-buffer 0xee) 7))]
             (should= 0xee result)))
 
         (it "should fill the vram data buffer with the value read from the bus"
           (let [ppu-w-data (assoc ppu :memory {0 0xff})
-                new-ppu (second (device-read ppu-w-data 7))]
+                new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
 
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"
-          (let [new-ppu (second (device-read (assoc ppu
+          (let [new-ppu (second (ppu-read (assoc ppu
                                                     :vram-addr-inc 1)
                                              7))]
             (should= 0x20 (:vram-addr new-ppu)))))
 
       (describe "when vram address increment is 0"
         (it "should increment the vram address by 1"
-          (let [new-ppu (second (device-read (assoc ppu
+          (let [new-ppu (second (ppu-read (assoc ppu
                                                     :vram-addr-inc 0)
                                              7))]
             (should= 1 (:vram-addr new-ppu))))))
 
     (describe "write to the data register at $2007"
       (it "should write to the PPU's memory bus at the vram address"
-        (let [new-ppu (second (device-write ppu 0xff 7))]
+        (let [new-ppu (second (ppu-write ppu 0xff 7))]
           (should= 0xff (first (device-read (:memory new-ppu) 0)))))
 
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"
-          (let [new-ppu (second (device-write (assoc ppu
+          (let [new-ppu (second (ppu-write (assoc ppu
                                                      :vram-addr-inc 1)
                                               0 7))]
             (should= 0x20 (:vram-addr new-ppu)))))
 
       (describe "when vram address increment is 0"
         (it "should increment the vram address by 1"
-          (let [new-ppu (second (device-write (assoc ppu
+          (let [new-ppu (second (ppu-write (assoc ppu
                                                     :vram-addr-inc 0)
                                               0 7))]
             (should= 1 (:vram-addr new-ppu))))))
@@ -407,39 +407,39 @@
     (describe "write to the addr register at $2006"
       (describe "when the write latch is off"
         (it "should copy the vram latch into the vram address"
-          (let [new-ppu (second (device-write ppu-latch-off 0xff 6))]
+          (let [new-ppu (second (ppu-write ppu-latch-off 0xff 6))]
             (should= 0xff (:vram-addr new-ppu))))
 
         (it "should overwrite the lower 8 bits of the vram latch with the
             written value"
-          (let [new-ppu (second (device-write (assoc ppu-latch-off
+          (let [new-ppu (second (ppu-write (assoc ppu-latch-off
                                                      :vram-latch
                                                      0x3fff) 0 6))]
             (should= 0x3f00 (:vram-latch new-ppu))))
 
         (it "should update the lower 8 bits of the vram latch with the written
             value"
-          (let [new-ppu (second (device-write ppu-latch-off 0xff 6))]
+          (let [new-ppu (second (ppu-write ppu-latch-off 0xff 6))]
             (should= 0xff (:vram-latch new-ppu)))))
 
       (describe "when the write latch is on"
         (it "should clear bit 14 of the vram latch"
-          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x7fff) 0xff 6))]
+          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x7fff) 0xff 6))]
             (should= 0x3fff (:vram-latch new-ppu))))
 
         (it "should overwrite the existing bits 13-8 with the lower 6 bits of
             the 8 bit value that was written"
-          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x3f00) 0 6))]
+          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x3f00) 0 6))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update bits 13-8 with the lower 6 bits of the 8 bit value
             that was written"
-          (let [new-ppu (second (device-write ppu 0x3f 6))]
+          (let [new-ppu (second (ppu-write ppu 0x3f 6))]
             (should= 0x3f00 (:vram-latch new-ppu)))))
 
       (it "should flip the write latch"
-        (let [off (second (device-write ppu 0 6))
-              on (second (device-write off 0 6))]
+        (let [off (second (ppu-write ppu 0 6))
+              on (second (ppu-write off 0 6))]
           (should (:write-latch? on))
           (should-not (:write-latch? off)))))
 
@@ -447,78 +447,78 @@
       (describe "when the write latch is off (updating vertical offset)"
         (it "should overwrite the existing bit 9-5 of the 15 bit vram latch
             with the upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write (assoc
+          (let [new-ppu (second (ppu-write (assoc
                                                 ppu-latch-off
                                                 :vram-latch 0x3e0) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update bits 9-5 of the 15 bit vram latch with the upper 5
             bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write ppu-latch-off 0xf8 5))]
+          (let [new-ppu (second (ppu-write ppu-latch-off 0xf8 5))]
             (should= 0x3e0 (:vram-latch new-ppu))))
 
         (it "should overwrite the existing upper 3 bits of the 15 bit vram latch
             with the lower 3 bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write (assoc
+          (let [new-ppu (second (ppu-write (assoc
                                                 ppu-latch-off
                                                 :vram-latch 0x7000) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update the upper 3 bits of the 15 bit vram latch with the
             lower 3 bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write ppu-latch-off 7 5))]
+          (let [new-ppu (second (ppu-write ppu-latch-off 7 5))]
             (should= 0x7000 (:vram-latch new-ppu)))))
 
       (describe "when the write latch is on (updating horizontal offset)"
         (it "shouldn't alter the upper 10 bits of the 15 bit vram latch when
             updating the lower 5 bits"
-          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x7fe0) 0xa8 5))]
+          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x7fe0) 0xa8 5))]
             (should= 0x7ff5 (:vram-latch new-ppu))))
 
         (it "should overwrite the existing lower 5 bits of the 15 bit vram
             latch with the upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write (assoc ppu :vram-latch 0x15) 0 5))]
+          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x15) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update the lower 5 bits of the 15 bit vram latch with the
             upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (device-write ppu 0xff 5))]
+          (let [new-ppu (second (ppu-write ppu 0xff 5))]
             (should= 0x1f (:vram-latch new-ppu))))
 
         (it "should copy the first three bits of the written value into the
             fine X internal register"
-          (let [new-ppu (second (device-write ppu 0xff 5))]
+          (let [new-ppu (second (ppu-write ppu 0xff 5))]
             (should= 7 (:fine-x new-ppu)))))
 
       (it "should flip the write latch"
-        (let [off (second (device-write ppu 0 5))
-              on (second (device-write off 0 5))]
+        (let [off (second (ppu-write ppu 0 5))
+              on (second (ppu-write off 0 5))]
           (should (:write-latch? on))
           (should-not (:write-latch? off)))))
 
     (describe "read from the oam data register at $2004"
       (it "should read the value pointed at by the oam addr"
         (let [ppu-w-oam-data (assoc ppu :oam-ram {0 0xbe})]
-          (should= 0xbe (first (device-read ppu-w-oam-data 4))))))
+          (should= 0xbe (first (ppu-read ppu-w-oam-data 4))))))
 
     (describe "write to the oam data register at $2004"
       (it "should modulo the oam address with 0x100 after incrementing"
         (let [ppu-w-oam-addr (assoc ppu :oam-addr 0xff)
-              new-ppu (second (device-write ppu-w-oam-addr 0 4))]
+              new-ppu (second (ppu-write ppu-w-oam-addr 0 4))]
           (should= 0 (:oam-addr new-ppu))))
 
       (it "should increment the oam address"
-        (let [new-ppu (second (device-write ppu 0xff 4))]
+        (let [new-ppu (second (ppu-write ppu 0xff 4))]
           (should= 1 (:oam-addr new-ppu))))
 
       (it "should update the value pointed at by the oam addr"
         (let [ppu-w-oam-addr (assoc ppu :oam-addr 5)
-              new-ppu (second (device-write ppu-w-oam-addr 0xff 4))]
+              new-ppu (second (ppu-write ppu-w-oam-addr 0xff 4))]
           (should= 0xff (get (:oam-ram new-ppu) 5 0)))))
 
     (describe "write to the oam address register at $2003"
       (it "should set the oam address to the written value"
-        (let [new-ppu (second (device-write ppu 0xff 3))]
+        (let [new-ppu (second (ppu-write ppu 0xff 3))]
           (should= 0xff (:oam-addr new-ppu)))))
 
     (describe "reading the status register at $2002"
@@ -526,7 +526,7 @@
         (let [ppu-right-before-vbl (merge ppu {:tick 1
                                                :scanline 240
                                                :vblank-started? true})
-              status (first (device-read ppu-right-before-vbl 2))]
+              status (first (ppu-read ppu-right-before-vbl 2))]
           (should= 0 (bit-and status 0x80))))
 
       (it "should not suppress vblank and NMI when not at tick 1 of scanline 240"
@@ -534,60 +534,60 @@
                                                :scanline 1
                                                :suppress-vblank? true
                                                :suppress-nmi? true})
-              new-ppu (second (device-read ppu-right-before-vbl 2))]
+              new-ppu (second (ppu-read ppu-right-before-vbl 2))]
           (should-not (:suppress-vblank? new-ppu))
           (should-not (:suppress-nmi? new-ppu))))
 
       (it "should suppress vblank and NMI when at tick 1 of scanline 240"
         (let [ppu-right-before-vbl (merge ppu {:tick 1
                                                :scanline 240})
-              new-ppu (second (device-read ppu-right-before-vbl 2))]
+              new-ppu (second (ppu-read ppu-right-before-vbl 2))]
           (should (:suppress-vblank? new-ppu))
           (should (:suppress-nmi? new-ppu))))
 
       (it "should set the write latch to true"
         (let [ppu-w-latch-false (assoc ppu :write-latch? false)
-              new-ppu (second (device-read ppu-w-latch-false 2))]
+              new-ppu (second (ppu-read ppu-w-latch-false 2))]
           (should (:write-latch? new-ppu))))
 
       (it "should clear vblank started"
         (let [ppu-w-vbl (assoc ppu :vblank-started? true)
-              ppu-wo-vbl (second (device-read ppu-w-vbl 2))]
+              ppu-wo-vbl (second (ppu-read ppu-w-vbl 2))]
           (should-not (:vblank-started? ppu-wo-vbl))))
 
       (it "should have bit 7 unset if vblank hasn't started"
         (let [ppu-wo-vbl (assoc ppu :vblank-started? false)]
-          (should= 0 (first (device-read ppu-wo-vbl 2)))))
+          (should= 0 (first (ppu-read ppu-wo-vbl 2)))))
 
       (it "should have bit 7 set if vblank has started"
         (let [ppu-w-vbl (assoc ppu :vblank-started? true)]
-          (should= 0x80 (first (device-read ppu-w-vbl 2)))))
+          (should= 0x80 (first (ppu-read ppu-w-vbl 2)))))
 
       (it "should have bit 6 unset if sprite 0 wasn't hit"
         (let [ppu-w-s0 (assoc ppu :sprite-0-hit? false)]
-          (should= 0 (first (device-read ppu-w-s0 2)))))
+          (should= 0 (first (ppu-read ppu-w-s0 2)))))
 
       (it "should have bit 6 set if sprite 0 was hit"
         (let [ppu-w-s0 (assoc ppu :sprite-0-hit? true)]
-          (should= 0x40 (first (device-read ppu-w-s0 2)))))
+          (should= 0x40 (first (ppu-read ppu-w-s0 2)))))
 
       (it "should have bit 5 unset if there wasn't a sprite overflow"
         (let [ppu-w-overflow (assoc ppu :sprite-overflow? false)]
-          (should= 0 (first (device-read ppu-w-overflow 2)))))
+          (should= 0 (first (ppu-read ppu-w-overflow 2)))))
 
       (it "should have bit 5 set if there was a sprite overflow"
         (let [ppu-w-overflow (assoc ppu :sprite-overflow? true)]
-          (should= 0x20 (first (device-read ppu-w-overflow 2))))))
+          (should= 0x20 (first (ppu-read ppu-w-overflow 2))))))
 
     (describe "writing to the mask register at $2001"
       (defn check-mask [m field]
-        (let [on (second (device-write ppu m 1))
-              off (second (device-write (assoc ppu field true) 0 1))]
+        (let [on (second (ppu-write ppu m 1))
+              off (second (ppu-write (assoc ppu field true) 0 1))]
           (should (field on))
           (should-not (field off))))
 
       (it "should set the mask property to the written value"
-        (let [new-ppu (second (device-write ppu 0xbe 1))]
+        (let [new-ppu (second (ppu-write ppu 0xbe 1))]
           (should= 0xbe (:mask new-ppu))))
 
       (it "should set intense blues based on the value at bit 7"
@@ -618,51 +618,51 @@
 
     (describe "writing to the control register at $2000"
       (it "should set bits 10 and 11 in the vram latch to the value at bits 0 and 1"
-        (let [with-vram-latch (second (device-write ppu 3 0))]
+        (let [with-vram-latch (second (ppu-write ppu 3 0))]
           (should= 0xc00 (:vram-latch with-vram-latch))))
 
       (it "should turn on/off NMI on vertical blank based on the value at bit 7"
-        (let [on (second (device-write ppu 0x80 0))
-              off (second (device-write ppu 0 0))]
+        (let [on (second (ppu-write ppu 0x80 0))
+              off (second (ppu-write ppu 0 0))]
           (should (:nmi-on-vblank? on))
           (should-not (:nmi-on-vblank? off))))
 
       (it "should set the sprite size to the value at bit 5"
-        (let [sz-8x8 (second (device-write ppu 0 0))
-              sz-8x16 (second (device-write ppu 0x20 0))]
+        (let [sz-8x8 (second (ppu-write ppu 0 0))
+              sz-8x16 (second (ppu-write ppu 0x20 0))]
           (should= 1 (:sprite-size sz-8x16))
           (should= 0 (:sprite-size sz-8x8))))
 
       (it "should set the background pattern table address to the value at bit 4"
-        (let [at-0000 (second (device-write ppu 0 0))
-              at-1000 (second (device-write ppu 0x10 0))]
+        (let [at-0000 (second (ppu-write ppu 0 0))
+              at-1000 (second (ppu-write ppu 0x10 0))]
           (should= 1 (:background-pattern-addr at-1000))
           (should= 0 (:background-pattern-addr at-0000))))
 
       (it "should set the sprite pattern table address for 8x8 sprites to the
           value at bit 3"
-        (let [at-0000 (second (device-write ppu 0 0))
-              at-1000 (second (device-write ppu 8 0))]
+        (let [at-0000 (second (ppu-write ppu 0 0))
+              at-1000 (second (ppu-write ppu 8 0))]
           (should= 1 (:sprite-pattern-addr at-1000))
           (should= 0 (:sprite-pattern-addr at-0000))))
 
       (it "should set the VRAM address increment per CPU read/write of PPUDATA
           to the value at bit 2"
-        (let [vertical (second (device-write ppu 4 0))
-              horizontal (second (device-write ppu 0 0))]
+        (let [vertical (second (ppu-write ppu 4 0))
+              horizontal (second (ppu-write ppu 0 0))]
           (should= 1 (:vram-addr-inc vertical))
           (should= 0 (:vram-addr-inc horizontal))))
 
       (it "should set the base nametable address to the first two bits"
-        (let [at-2c00 (second (device-write ppu 3 0))
-              at-2800 (second (device-write ppu 2 0))
-              at-2400 (second (device-write ppu 1 0))
-              at-2000 (second (device-write ppu 0 0))]
+        (let [at-2c00 (second (ppu-write ppu 3 0))
+              at-2800 (second (ppu-write ppu 2 0))
+              at-2400 (second (ppu-write ppu 1 0))
+              at-2000 (second (ppu-write ppu 0 0))]
           (should= 0 (:base-nametable-addr at-2000))
           (should= 1 (:base-nametable-addr at-2400))
           (should= 2 (:base-nametable-addr at-2800))
           (should= 3 (:base-nametable-addr at-2c00))))
 
       (it "should set the control property to the written value"
-        (let [new-ppu (second (device-write ppu 3 0))]
+        (let [new-ppu (second (ppu-write ppu 3 0))]
           (should= 3 (:control new-ppu)))))))

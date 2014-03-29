@@ -137,7 +137,7 @@
                  :suppress-nmi? at-vblank-tick?}]
     [status (merge ppu changes)]))
 
-(defn register-write [ppu v addr]
+(defn ppu-write [ppu v addr]
   [v (condp = addr
        0 (control-write ppu v)
        1 (mask-write ppu v)
@@ -148,70 +148,62 @@
        7 (data-write ppu v)
        ppu)])
 
-(defn register-read [ppu addr]
+(defn ppu-register-write [machine v addr]
+  (let [ppu (:ppu machine)]
+    [v (assoc machine :ppu (second (ppu-write ppu v addr)))]))
+
+(defn ppu-read [ppu addr]
   (condp = addr
     2 (status-read ppu)
     4 (oam-data-read ppu)
     7 (data-read ppu)
     [0 ppu]))
 
-(defrecord PPU
-  [^int control
-   ^int base-nametable-address
-   ^int vram-addr-inc
-   ^int sprite-pattern-addr
-   ^int background-pattern-addr
-   ^int sprite-size
-   ^boolean nmi-on-vblank?
-
-   ^int mask
-   ^boolean grayscale?
-   ^boolean show-background-on-left?
-   ^boolean show-sprites-on-left?
-   ^boolean show-background?
-   ^boolean show-sprites?
-   ^boolean intense-reds?
-   ^boolean intense-greens?
-   ^boolean intense-blues?
-
-   ^boolean sprite-overflow?
-   ^boolean sprite-0-hit?
-   ^boolean vblank-started?
-   ^boolean write-latch?
-
-   ^int oam-addr
-   oam-ram
-
-   ^int fine-x
-   ^int vram-latch
-   ^int vram-addr
-   ^int vram-data-buffer
-
-   ^int scanline
-   ^int tick
-   ^int frame-count
-
-   ^BufferedImage background-frame-buffer
-   memory]
-
-  Device
-  (device-read [this addr]
-    (register-read this addr))
-
-  (device-write [this v addr]
-    (register-write this v addr)))
+(defn ppu-register-read [machine addr]
+  (let [ppu (:ppu machine)
+        [v new-ppu] (ppu-read ppu addr)]
+    [v (assoc machine :ppu new-ppu)]))
 
 (def init-oam-ram (vec (repeat 0x100 0)))
 
 (defn make-ppu [bus]
-  (PPU. 0 0 0 0 0 0 false
-        0 false false false false false false false false
-        false false false true
-        0 init-oam-ram
-        0 0 0 0
-        -1 0 0
-        (BufferedImage. 256 240 BufferedImage/TYPE_INT_ARGB)
-        bus))
+  {:control 0
+   :base-nametable-address 0
+   :vram-addr-inc 0
+   :sprite-pattern-addr 0
+   :background-pattern-addr 0
+   :sprite-size 0
+   :nmi-on-vblank? false
+
+   :mask 0
+   :grayscale? false
+   :show-background-on-left? false
+   :show-sprites-on-left? false
+   :show-background? false
+   :show-sprites? false
+   :intense-reds? false
+   :intense-greens? false
+   :intense-blues? false
+
+   :sprite-overflow? false
+   :sprite-0-hit? false
+   :vblank-started? false
+   :write-latch? true
+
+   :oam-addr 0
+   :oam-ram init-oam-ram
+
+   :fine-x 0
+   :vram-latch 0
+   :vram-addr 0
+   :vram-data-buffer 0
+
+   :scanline 261
+   :tick 0
+   :frame-count 0
+
+   :background-frame-buffer (BufferedImage. 256 240 BufferedImage/TYPE_INT_ARGB)
+   :memory bus})
 
 (defn- rendering-enabled? [ppu]
   (or (:show-sprites? ppu) (:show-background? ppu)))
@@ -371,47 +363,40 @@
       machine)))
 
 (defn- advance-odd-scanline [ppu]
-  (merge ppu {:scanline 0
-              :tick 0}))
+  (merge ppu {:scanline 0 :tick 0}))
 
-(defn- advance-normal-scanline [ppu]
-  (let [scanline (:scanline ppu)
-        tick (:tick ppu)]
-    (if (= 340 tick)
-      (merge ppu {:tick 0
-                  :scanline (if (= 260 scanline)
-                              -1
-                              (inc scanline))})
-      (assoc ppu :tick (inc tick)))))
+(defn- advance-normal-scanline [ppu scanline tick]
+  (if (== 340 tick)
+    (merge ppu {:tick 0
+                :scanline (mod (+ 1 scanline) 262)})
+    (assoc ppu :tick (+ 1 tick))))
 
 (defn- advance-scanline [ppu]
-  (let [scanline (:scanline ppu)
-        tick (:tick ppu)
-        frame-count (:frame-count ppu)]
+  (let [^int scanline (:scanline ppu)
+        ^int tick (:tick ppu)
+        frame-count ^int (:frame-count ppu)]
     (if (and
-          (= 339 tick)
-          (= -1 scanline)
+          (== 339 tick)
+          (== 261 scanline)
           (odd? frame-count)
           (:show-background? ppu))
       (advance-odd-scanline ppu)
-      (advance-normal-scanline ppu))))
+      (advance-normal-scanline ppu scanline tick))))
 
 (defn ppu-step [machine]
   (let [ppu (:ppu machine)
-        scanline (:scanline ppu)
-        tick (:tick ppu)
+        scanline ^int (:scanline ppu)
+        tick ^int (:tick ppu)
         machine (cond
-                  (= -1 scanline) (step-pre-render-scanline machine)
+                  (< scanline 240) (step-visible-scanline machine)
+
+                  (== 240 scanline) (step-post-render-scanline machine)
 
                   (and
-                    (> scanline -1)
-                    (< scanline 240)) (step-visible-scanline machine)
+                    (== 260 scanline)
+                    (== 1 tick)) (assoc-in machine [:ppu :vblank-started?] false)
 
-                  (= 240 scanline) (step-post-render-scanline machine)
-
-                  (and
-                    (= 260 scanline)
-                    (= 1 tick)) (assoc-in machine [:ppu :vblank-started?] false)
+                  (== 261 scanline) (step-pre-render-scanline machine)
 
                   :else machine)
         after-advancing (advance-scanline (:ppu machine))]

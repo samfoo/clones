@@ -5,12 +5,6 @@
             [clones.device       :refer :all]
             [clojure.algo.monads :refer :all]))
 
-(defrecord MockPPU [writes]
-  Device
-  (device-read [this addr] [nil this])
-  (device-write [this v addr]
-    [v (MockPPU. (conj writes {addr v}))]))
-
 (defrecord MockMapper [prg chr]
   Mapper
   (prg-read [this addr] [(get prg addr 0) this])
@@ -18,7 +12,6 @@
   (chr-read [this addr] [(get chr addr 0) this])
   (chr-write [this v addr] [v (assoc this :chr (assoc chr addr v))]))
 
-(defn dma-ppu [] (MockPPU. []))
 (defn mapper [] (MockMapper. {} {}))
 (defn stub-mapper [prg chr] (MockMapper. prg chr))
 (def bus {:internal-ram {}
