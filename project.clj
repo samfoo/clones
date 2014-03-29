@@ -1,6 +1,7 @@
 (defproject clones "0.1"
   :description "An NES emulator with style"
-  :url "http://example.com/FIXME"
+  :url "http://github.com/samfoo/clones"
+  :global-vars {*warn-on-reflection* true}
   :license {:name "GPLv3"
             :url "http://www.gnu.org/copyleft/gpl.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
