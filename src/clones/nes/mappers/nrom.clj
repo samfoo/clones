@@ -56,17 +56,17 @@
 
   (prg-read [this addr]
     (cond
-      (< addr 0x6000) (throw (ex-info
-                               "Invalid memory access on NROM cartridge"
-                               {:addr addr :type :read}))
+      ;; (< addr 0x6000) (throw (ex-info
+      ;;                          "Invalid memory access on NROM cartridge"
+      ;;                          {:addr addr :type :read}))
       (< addr 0x8000) (nrom-read-ram this addr)
       :else (nrom-read-prg-rom this addr)))
 
   (prg-write [this v addr]
     (cond
-      (< addr 0x6000) (throw (ex-info
-                               "Invalid memory access on NROM cartridge"
-                               {:addr addr :type :write}))
+      ;; (< addr 0x6000) (throw (ex-info
+      ;;                          "Invalid memory access on NROM cartridge"
+      ;;                          {:addr addr :type :write}))
       (< addr 0x8000) (nrom-write-ram this v addr)
       :else [v this])))
 

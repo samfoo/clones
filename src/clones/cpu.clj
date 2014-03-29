@@ -41,16 +41,18 @@
      (aset timings ~'code (fn cycles-wrapped [~'cpu-before ~'cpu-after]
                             (~'timing ~'cpu-before ~'cpu-after ~'mode)))
 
-     (aset ops ~'code (fn ~n [~'cpu]
-                        (~(symbol (str \- n)) ~'cpu ~'mode)))))
+     (aset ops ~'code (with-meta
+                        (fn ~n [~'cpu]
+                          (~(symbol (str \- n)) ~'cpu ~'mode))
+                        {:address-mode ~'mode
+                         :name (str '~n)}))))
 
-(defn make-cpu [bus] {:a  0
-                      :x  0
-                      :y  0
-                      :sp 0xfd
-                      :p  0x24
-                      :pc 0
-                      :memory bus})
+(defn make-cpu [] {:a  0
+                   :x  0
+                   :y  0
+                   :sp 0xfd
+                   :p  0x24
+                   :pc 0})
 
 (defn- inc-pc [cpu]
   (assoc cpu :pc (+ 1 (:pc cpu))))
@@ -95,19 +97,18 @@
   (io-> cpu (io-read-word 0xfffa)))
 
 (defn perform-nmi [machine]
-  (let [cpu (:cpu machine)
+  (let [cpu machine
         return-pc (:pc cpu)
         high (high-byte return-pc)
         low  (low-byte return-pc)
         flags (:p cpu)
         [interrupt after-read] (nmi-vector cpu)]
-    (-> machine
+    (-> after-read
       (assoc :interrupt nil)
-      (assoc :cpu (-> after-read
-                    (stack-push high)
-                    (stack-push low)
-                    (stack-push flags)
-                    (assoc :pc interrupt))))))
+      (stack-push high)
+      (stack-push low)
+      (stack-push flags)
+      (assoc :pc interrupt))))
 
 (defn execute-with-timing [cpu op timing]
   (let [after-op (op cpu)
@@ -115,14 +116,12 @@
     [cs after-op]))
 
 (defn cpu-step [machine]
-  (let [cpu (:cpu machine)
+  (let [cpu machine
         [op-code after-read] (io-> cpu (io-read (:pc cpu)))
         op (op-by-opcode op-code)
         timing (timing-by-opcode op-code)]
-    ;; (when (nil? op)
-    ;;   (throw (ex-info (format "Invalid op code $%02x" op-code) {:op-code op-code})))
     (let [[cs after-op] (execute-with-timing (inc-pc after-read) op timing)]
-      [cs (assoc machine :cpu after-op)])))
+      [cs after-op])))
 
 (defn- different-pages? [a1 a2]
   (not= (bit-and 0xff00 a1) (bit-and 0xff00 a2)))
@@ -519,7 +518,7 @@
   (let [[addr after-io] (io-> cpu (relative))]
     (if predicate
       (with-meta (assoc after-io :pc addr) {:branched? true})
-      (advance-pc after-io mode))))
+      (with-meta (advance-pc after-io mode) {}))))
 
 (defop bcc [0x90 relative (branch-cycles 2)] (branch-if cpu address-mode (not (carry-flag? cpu))))
 (defop bcs [0xb0 relative (branch-cycles 2)] (branch-if cpu address-mode (carry-flag? cpu)))
@@ -709,9 +708,7 @@
     (advance-pc after-io address-mode)))
 
 (defop *sbc [0xeb immediate (cycles 2)]
-  (advance-pc cpu address-mode))
-  ;; TODO: Fix this to work with the new op function datastructure
-  ;; ((op :sbc) cpu address-mode))
+  (-sbc cpu address-mode))
 
 (defop *dcp [0xc3 indexed-indirect (cycles 8)
              0xd3 indirect-indexed (cycles 8)

@@ -21,107 +21,110 @@
 (defn dma-ppu [] (MockPPU. []))
 (defn mapper [] (MockMapper. {} {}))
 (defn stub-mapper [prg chr] (MockMapper. prg chr))
-(def bus (make-main-memory {} {} (mapper)))
+(def bus {:internal-ram {}
+          :ppu {}
+          :apu {}
+          :mapper (mapper)})
 
 (describe
   "The NES's memory bus, mapped with devices like APU, PPU, and cartridge"
   (tags :memory)
 
-  (defn should-return-bus-after-reading [addr]
+  (defn should-return-machine-after-reading [addr]
     (it "should return the bus after reading"
-      (should= bus (second (device-read bus addr)))))
+      (should= bus (second (mem-read bus addr)))))
 
   (describe "$4020 - $ffff"
-    (should-return-bus-after-reading 0x6000)
+    (should-return-machine-after-reading 0x6000)
 
     (it "should write to the mapper"
-      (let [after-write (second (device-write bus 0xff 0x4020))]
-        (should= 0xff (first (device-read after-write 0x4020)))))
+      (let [after-write (second (mem-write bus 0xff 0x4020))]
+        (should= 0xff (first (mem-read after-write 0x4020)))))
 
     (it "should read from the mapper"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :mapper (stub-mapper {0x6000 0xbe} {}))]
-        (should= 0xbe (first (device-read bus-with-value 0x6000))))))
+        (should= 0xbe (first (mem-read machine-with-value 0x6000))))))
 
   (describe "$4014 where the written value is $xx"
-    (should-return-bus-after-reading 0x4014)
+    (should-return-machine-after-reading 0x4014)
 
     (it "should read 256 bytes from $xx00 - $xxff and write them to $2014"
       (let [ppu (dma-ppu)
-            bus-with-oam (merge bus
+            machine-with-oam (merge bus
                                 {:mapper (stub-mapper {0x4400 0x11 0x44ff 0xff} {})
                                  :ppu ppu})
-            [_ after-dma] (device-write bus-with-oam 0x44 0x4014)]
+            [_ after-dma] (mem-write machine-with-oam 0x44 0x4014)]
         (should= 256 (count (:writes (:ppu after-dma))))
         (should= {4 0x11} (first (:writes (:ppu after-dma))))
         (should= {4 0xff} (last (:writes (:ppu after-dma)))))))
 
   (describe "$4000 - $4013, $4015"
-    (should-return-bus-after-reading 0x4000)
+    (should-return-machine-after-reading 0x4000)
 
     (it "should write to the APU at $4015"
-      (let [after-write (second (device-write bus 0xff 0x4015))]
-        (should= 0xff (first (device-read after-write 0x4015)))))
+      (let [after-write (second (mem-write bus 0xff 0x4015))]
+        (should= 0xff (first (mem-read after-write 0x4015)))))
 
     (it "should read from the APU at $4015, relative to $4000"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :apu
                                   {0x15 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0x4015)))))
+        (should= 0xbe (first (mem-read machine-with-value 0x4015)))))
 
     (it "should write to the APU"
-      (let [after-write (second (device-write bus 0xff 0x4000))]
-        (should= 0xff (first (device-read after-write 0x4000)))))
+      (let [after-write (second (mem-write bus 0xff 0x4000))]
+        (should= 0xff (first (mem-read after-write 0x4000)))))
 
     (it "should read from the APU relative to $4000"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :apu
                                   {0 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0x4000))))))
+        (should= 0xbe (first (mem-read machine-with-value 0x4000))))))
 
   (describe "$2000 - $3fff"
-    (should-return-bus-after-reading 0x2000)
+    (should-return-machine-after-reading 0x2000)
 
     (it "should mirror all addresses > $2007 to $2000 - $2007 when writing"
-      (let [after-write (second (device-write bus 0xff 0x2008))]
-        (should= 0xff (first (device-read after-write 0x2000)))))
+      (let [after-write (second (mem-write bus 0xff 0x2008))]
+        (should= 0xff (first (mem-read after-write 0x2000)))))
 
     (it "should write to the PPU"
-      (let [after-write (second (device-write bus 0xff 0x2000))]
-        (should= 0xff (first (device-read after-write 0x2000)))))
+      (let [after-write (second (mem-write bus 0xff 0x2000))]
+        (should= 0xff (first (mem-read after-write 0x2000)))))
 
     (it "should mirror all addresses > $2007 to $2000 - $2007 when reading"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :ppu
                                   {0 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0x2008)))))
+        (should= 0xbe (first (mem-read machine-with-value 0x2008)))))
 
     (it "should read from the PPU relative to $2000"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :ppu
                                   {0 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0x2000))))))
+        (should= 0xbe (first (mem-read machine-with-value 0x2000))))))
 
   (describe "$0000 - $1fff"
-    (should-return-bus-after-reading 0)
+    (should-return-machine-after-reading 0)
 
     (it "should mirror all addresses > $07ff to $0000 - $07ff when writing"
-      (let [after-write (second (device-write bus 0xff 0x800))]
-        (should= 0xff (first (device-read after-write 0)))))
+      (let [after-write (second (mem-write bus 0xff 0x800))]
+        (should= 0xff (first (mem-read after-write 0)))))
 
     (it "should write to internal RAM"
-      (let [after-write (second (device-write bus 0xff 0))]
-        (should= 0xff (first (device-read after-write 0)))))
+      (let [after-write (second (mem-write bus 0xff 0))]
+        (should= 0xff (first (mem-read after-write 0)))))
 
     (it "should mirror all addresses > $07ff to $0000 - $07ff when reading"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :internal-ram
                                   {0 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0x800)))))
+        (should= 0xbe (first (mem-read machine-with-value 0x800)))))
 
     (it "should read from internal RAM"
-      (let [bus-with-value (assoc bus
+      (let [machine-with-value (assoc bus
                                   :internal-ram
                                   {0 0xbe})]
-        (should= 0xbe (first (device-read bus-with-value 0)))))))
+        (should= 0xbe (first (mem-read machine-with-value 0)))))))
 

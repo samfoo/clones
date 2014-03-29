@@ -1,17 +1,15 @@
 (ns clones.cpu.memory
   (:require [clojure.algo.monads :refer :all]
-            [clones.device       :refer :all]
+            [clones.nes.memory   :refer :all]
             [clones.byte         :refer :all]))
 
 (defn io-read [addr]
-  (fn [dev]
-    (let [[v bus-after-read] (device-read (:memory dev) addr)]
-      [v (assoc dev :memory bus-after-read)])))
+  (fn [machine]
+    (mem-read machine addr)))
 
 (defn io-write [v addr]
-  (fn [dev]
-    (let [[v bus-after-write] (device-write (:memory dev) v addr)]
-      [v (assoc dev :memory bus-after-write)])))
+  (fn [machine]
+    (mem-write machine v addr)))
 
 (defn io-write-word [v addr]
   (let [high (high-byte v)
@@ -30,18 +28,18 @@
 (defmacro with-io-> [steps expr]
   `(domonad state-m ~steps ~expr))
 
-(defmacro io-> [dev & steps]
+(defmacro io-> [machine & steps]
   `(reduce
      (fn [~'mem ~'step]
        (~'step (second ~'mem)))
-     [nil ~dev]
+     [nil ~machine]
      [~@steps]))
 
-(defmacro io-debug-> [dev & steps]
+(defmacro io-debug-> [machine & steps]
   `(first
      (reduce
        (fn [~'mem ~'step]
          (~'step (second ~'mem)))
-       [nil ~dev]
+       [nil ~machine]
        [~@steps])))
 

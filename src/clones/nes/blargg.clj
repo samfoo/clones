@@ -8,14 +8,12 @@
             [clones.cpu.memory :refer :all]))
 
 (defn- await-test-start [nes]
-  (let [cpu (:cpu nes)]
-    (if (= 0x80 (io-debug-> cpu (io-read 0x6000)))
-      nes
-      (recur (system-step nes)))))
+  (if (= 0x80 (io-debug-> nes (io-read 0x6000)))
+    nes
+    (recur (system-step nes))))
 
 (defn- read-null-term-str-from [nes addr]
-  (let [cpu (:cpu nes)
-        b (io-debug-> cpu (io-read addr))
+  (let [b (io-debug-> nes (io-read addr))
         c (when-not (zero? b)
             (char b))]
     (if (nil? c)
@@ -26,8 +24,7 @@
   (read-null-term-str-from nes 0x6004))
 
 (defn- await-test-finish [nes]
-  (let [cpu (:cpu nes)
-        status (io-debug-> cpu (io-read 0x6000))]
+  (let [status (io-debug-> nes (io-read 0x6000))]
     (if (= status 0x80)
       (recur (system-step nes))
       nes)))

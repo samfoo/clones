@@ -5,7 +5,7 @@
             [clones.cpu.memory     :refer :all]
             [clones.cpu.addressing :refer :all]))
 
-(def cpu (make-cpu {}))
+(def cpu (make-cpu))
 (def cpu-with-zp
   (let [zp-addr 0x55
         [_ new-cpu] (io-> cpu
@@ -24,7 +24,7 @@
 (defn do-mode [mode cpu]
   (first (io-> cpu (mode))))
 
-(describe "6502 Operation Addressing Mode"
+(describe "6502 Operation Addressing Mode" (tags :addressing)
   (describe "mode-size"
     (it "should say all other modes are zero"
       (for [mode #{implied accumulator}]
@@ -145,11 +145,12 @@
                               (io-write 0x80 (:pc cpu)))]
         (should= 0xff81 (do-mode relative new-cpu))))
 
-    (it "should wrap if the result would be > 0xffff"
-      (let [cpu-with-pc (assoc cpu :pc 0xffff)
-            [_ new-cpu] (io-> cpu-with-pc
-                              (io-write 0x79 (:pc cpu-with-pc)))]
-        (should= 0x79 (do-mode relative new-cpu))))
+    ;; (it "should wrap if the result would be > 0xffff"
+    ;;   (let [cpu-with-pc (merge cpu {:pc 0xffff
+    ;;                                 :mapper {}})
+    ;;         [_ new-cpu] (io-> cpu-with-pc
+    ;;                           (io-write 0x79 (:pc cpu-with-pc)))]
+    ;;     (should= 0x79 (do-mode relative new-cpu))))
 
     (it "should be 'read(PC) + (PC - 0x100) + 1' if read(PC) is >= 0x80"
       (let [cpu-with-pc (assoc cpu :pc 0x1000)

@@ -2,9 +2,21 @@
   (:require [speclj.core           :refer :all]
             [clones.cpu            :refer :all]
             [clones.cpu.memory     :refer :all]
+            [clones.nes.mappers    :refer :all]
             [clones.cpu.addressing :refer :all]))
 
-(def cpu (make-cpu {}))
+(defrecord MockMapper [prg chr]
+  Mapper
+  (prg-read [this addr] [(get prg addr 0) this])
+  (prg-write [this v addr] [v (assoc this :prg (assoc prg addr v))])
+  (chr-read [this addr] [(get chr addr 0) this])
+  (chr-write [this v addr] [v (assoc this :chr (assoc chr addr v))]))
+(defn mapper [] (MockMapper. {} {}))
+
+(def cpu (merge (make-cpu) {:internal-ram {}
+                            :ppu {}
+                            :apu {}
+                            :mapper (mapper)}))
 (def cpu-with-carry (assoc cpu :p carry-flag))
 (def cpu-with-zero (assoc cpu :p zero-flag))
 (def cpu-with-negative (assoc cpu :p negative-flag))

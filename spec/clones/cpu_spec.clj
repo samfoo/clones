@@ -2,9 +2,21 @@
   (:require [speclj.core           :refer :all]
             [clones.cpu            :refer :all]
             [clones.cpu.memory     :refer :all]
+            [clones.nes.mappers    :refer :all]
             [clones.cpu.addressing :refer :all]))
 
-(def cpu (make-cpu {}))
+(defrecord MockMapper [prg chr]
+  Mapper
+  (prg-read [this addr] [(get prg addr 0) this])
+  (prg-write [this v addr] [v (assoc this :prg (assoc prg addr v))])
+  (chr-read [this addr] [(get chr addr 0) this])
+  (chr-write [this v addr] [v (assoc this :chr (assoc chr addr v))]))
+(defn mapper [] (MockMapper. {} {}))
+
+(def cpu (merge (make-cpu) {:internal-ram {}
+                            :ppu {}
+                            :apu {}
+                            :mapper (mapper)}))
 (def cpu-with-carry (assoc cpu :p carry-flag))
 (def cpu-with-zero (assoc cpu :p zero-flag))
 (def cpu-with-negative (assoc cpu :p negative-flag))
@@ -27,26 +39,23 @@
 
   (describe "executing an NMI"
     (it "should push the flags to the stack"
-      (let [machine {:cpu (assoc cpu :p 0xee)}
+      (let [machine (assoc cpu :p 0xee)
             new-machine (perform-nmi machine)
-            new-cpu (:cpu new-machine)
-            flags (peek-stack-n new-cpu 0)]
+            flags (peek-stack-n new-machine 0)]
         (should= 0xee flags)))
 
     (it "should set the program counter to the NMI vector at $fffa"
-      (let [machine {:cpu (second (io-> cpu
-                                        (io-write-word 0xbeef 0xfffa)))}
-            new-machine (perform-nmi machine)
-            new-cpu (:cpu new-machine)]
-        (should= 0xbeef (:pc new-cpu))))
+      (let [machine (second (io-> cpu
+                                  (io-write-word 0xbeef 0xfffa)))
+            new-machine (perform-nmi machine)]
+        (should= 0xbeef (:pc new-machine))))
 
 
     (it "should push the current program counter to the stack"
-      (let [machine {:cpu (assoc cpu :pc 0xffee)}
+      (let [machine (assoc cpu :pc 0xffee)
             new-machine (perform-nmi machine)
-            new-cpu (:cpu new-machine)
-            low (peek-stack-n new-cpu 1)
-            high (peek-stack-n new-cpu 2)]
+            low (peek-stack-n new-machine 1)
+            high (peek-stack-n new-machine 2)]
         (should= 0xff high)
         (should= 0xee low))))
 
