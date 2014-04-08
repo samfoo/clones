@@ -4,18 +4,25 @@
             [clones.ppu    :refer :all])
   (import [java.awt.image BufferedImage]))
 
-(def ppu (make-ppu {}))
-(def ppu-latch-off (assoc ppu :write-latch? false))
+(defn merge! [x y]
+  (reduce
+    (fn [res [k v]] (assoc! res k v))
+    x y))
 
 (describe "The NES's 2C02 PPU" (tags :ppu)
+  (with ppu (transient (make-ppu {})))
+  (with persistent-ppu (persistent! @ppu))
+  (with ppu-latch-off (transient (assoc (make-ppu {}) :write-latch? false)))
+
   (describe "pattern-tile-indices-for-current-scanline"
     (def tiles (vec (repeat 32 0)))
 
     (it (str "should switch horizontal nametables midway through if the tiles
              cross a nametable border")
-      (let [ppu-w-nametables (merge ppu {:vram-addr 0x001f
-                                         :memory {0x201f 1
-                                                  0x2400 1}})
+      (let [ppu-w-nametables (-> @ppu
+                               (assoc! :vram-addr 0x001f)
+                               (assoc! :memory {0x201f 1
+                                                0x2400 1}))
             tile-indices (pattern-tile-indices-for-current-scanline
                            ppu-w-nametables)]
         (should= (-> tiles
@@ -23,8 +30,8 @@
                    (assoc 1 1)) tile-indices)))
 
     (it "should read from the nametables starting at vram addr + $2000"
-      (let [ppu-w-nametable (assoc ppu :memory {0x2000 1
-                                                0x201f 1})
+      (let [ppu-w-nametable (assoc! @ppu :memory {0x2000 1
+                                                 0x201f 1})
             tile-indices (pattern-tile-indices-for-current-scanline
                            ppu-w-nametable)]
         (should= (-> tiles
@@ -34,107 +41,109 @@
   (describe "pattern-tile-row"
     (it (str "should use the line index (fine Y scroll) as the least "
              "significant 4 bits")
-      (let [ppu-w-tile (assoc ppu :memory {0x01e1 0x41
+      (let [ppu-w-tile (assoc! @ppu :memory {0x01e1 0x41
                                            0x01e9 0x11})
             palette-indices (pattern-tile-row ppu-w-tile 30 1)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it (str "should use the index (coarse X scroll) as the middle byte of "
              "the address (e.g. $0xx0)")
-      (let [ppu-w-tile (assoc ppu :memory {0x01e0 0x41
+      (let [ppu-w-tile (assoc! @ppu :memory {0x01e0 0x41
                                            0x01e8 0x11})
             palette-indices (pattern-tile-row ppu-w-tile 30 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it "should start at $1000 if the background pattern address is 1"
-      (let [ppu-w-tile (merge ppu {:background-pattern-addr 1
-                                   :memory {0x1000 0x41    ;; 01000001
-                                            0x1008 0x11}}) ;; 00010001
+      (let [ppu-w-tile (-> @ppu
+                         (assoc! :background-pattern-addr 1)
+                         (assoc! :memory {0x1000 0x41    ;; 01000001
+                                          0x1008 0x11})) ;; 00010001
             palette-indices (pattern-tile-row ppu-w-tile 0 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it (str "should read the low and high bytes and combine them into a "
              "stream of palette indices from 0 to 3")
-      (let [ppu-w-tile (assoc ppu :memory {0 0x41   ;; 01000001
+      (let [ppu-w-tile (assoc! @ppu :memory {0 0x41   ;; 01000001
                                            8 0x11}) ;; 00010001
             palette-indices (pattern-tile-row ppu-w-tile 0 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices))))
 
-  (describe "ppu-step"
+  (describe "transient-ppu-step"
     (defn ppu-step-debug [machine]
-      (:ppu (ppu-step machine)))
+      (:ppu (transient-ppu-step machine)))
 
-    (let [ppu (assoc ppu :tick 340)]
-      (describe "when the tick is 340"
-        (it "should increment the scanline by 1 when it's less than 260"
-          (let [ppu-w-scanline (assoc ppu :scanline 0)
-                machine {:ppu ppu-w-scanline}]
-            (should= 1 (:scanline (ppu-step-debug machine)))))
+    (describe "when the tick is 340"
+      (with ppu-at-340 (transient (persistent! (assoc! @ppu :tick 340))))
 
-        (it "should reset the scanline to 0 if it's 261"
-          (let [ppu-w-scanline (assoc ppu :scanline 261)
-                machine {:ppu ppu-w-scanline}]
-            (should= 0 (:scanline (ppu-step-debug machine)))))
+      (it "should increment the scanline by 1 when it's less than 260"
+        (let [ppu-w-scanline (assoc! @ppu-at-340 :scanline 0)
+              machine {:ppu ppu-w-scanline}]
+          (should= 1 (:scanline (ppu-step-debug machine)))))
 
-        (it "should reset the tick to 0"
-          (should= 0 (:tick (ppu-step-debug {:ppu ppu}))))))
+      (it "should reset the scanline to 0 if it's 261"
+        (let [ppu-w-scanline (assoc! @ppu-at-340 :scanline 261)
+              machine {:ppu ppu-w-scanline}]
+          (should= 0 (:scanline (ppu-step-debug machine)))))
+
+      (it "should reset the tick to 0"
+        (should= 0 (:tick (ppu-step-debug {:ppu @ppu-at-340})))))
 
     (it "should increment the tick by 1 when it's less than 340"
-      (should= 1 (:tick (ppu-step-debug {:ppu ppu}))))
+      (should= 1 (:tick (ppu-step-debug {:ppu @ppu}))))
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
         (describe "when rendering is enabled"
           (it "should increment the framecount"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :scanline 240
-                                            :frame-count 0
-                                            :show-background? true})}
-                  new-machine (ppu-step machine)]
+            (let [machine {:ppu (merge! @ppu {:tick 1
+                                              :scanline 240
+                                              :frame-count 0
+                                              :show-background? true})}
+                  new-machine (transient-ppu-step machine)]
               (should= 1 (get-in new-machine [:ppu :frame-count])))))
 
 
         (describe "when NMI on vblank control is turned off"
           (it "should not request an NMI"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :nmi-on-vblank? false
-                                            :scanline 240})
+            (let [machine {:ppu (merge! @ppu {:tick 1
+                                              :nmi-on-vblank? false
+                                              :scanline 240})
                            :interrupt nil}
-                  new-machine (ppu-step machine)]
+                  new-machine (transient-ppu-step machine)]
               (should= nil (:interrupt new-machine)))))
 
         (describe "when NMI on vblank control is turned on"
           (it "should request an NMI"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :nmi-on-vblank? true
-                                            :scanline 240})
+            (let [machine {:ppu (merge! @ppu {:tick 1
+                                              :nmi-on-vblank? true
+                                              :scanline 240})
                            :interrupt nil}
-                  new-machine (ppu-step machine)]
+                  new-machine (transient-ppu-step machine)]
               (should= :nmi (:interrupt new-machine)))))
 
         (describe "when suppressing vblank"
           (it "should unsuppress vblank after having suppressed it"
-            (let [ppu-suppressing (merge ppu {:vblank-started? false
-                                              :scanline 240
-                                              :tick 1
-                                              :suppress-vblank? true})
+            (let [ppu-suppressing (merge! @ppu {:vblank-started? false
+                                                :scanline 240
+                                                :tick 1
+                                                :suppress-vblank? true})
                   machine {:ppu ppu-suppressing}
                   new-ppu (ppu-step-debug machine)]
               (should-not (:suppress-vblank? new-ppu))))
 
           (it "should not set the vblank started flag"
-            (let [ppu-suppressing (merge ppu {:vblank-started? false
-                                              :scanline 240
-                                              :tick 1
-                                              :suppress-vblank? true})
+            (let [ppu-suppressing (merge! @ppu {:vblank-started? false
+                                                :scanline 240
+                                                :tick 1
+                                                :suppress-vblank? true})
                   machine {:ppu ppu-suppressing}
                   new-ppu (ppu-step-debug machine)]
               (should-not (:vblank-started? new-ppu)))))
 
         (it "should set the vblank started flag"
-          (let [ppu-wo-vblank-started (merge ppu {:vblank-started? false
-                                                  :scanline 240
-                                                  :tick 1})
+          (let [ppu-wo-vblank-started (merge! @ppu {:vblank-started? false
+                                                    :scanline 240
+                                                    :tick 1})
                 machine {:ppu ppu-wo-vblank-started}
                 new-ppu (ppu-step-debug machine)]
             (should (:vblank-started? new-ppu))))))
@@ -161,10 +170,11 @@
                      ;; Nametable points to pattern table
                      0x2000 0x01})
 
-        (def ppu-at-end-of-scanline (merge ppu {:show-sprites? false
-                                                :show-background? true
-                                                :tick 256
-                                                :memory memory}))
+        (with ppu-at-end-of-scanline (-> @ppu
+                                       (assoc! :show-sprites? false)
+                                       (assoc! :show-background? true)
+                                       (assoc! :tick 256)
+                                       (assoc! :memory memory)))
 
         (defn should-match-line [v bi line]
           (doseq [x (range (count v))]
@@ -176,19 +186,19 @@
 
         (describe "when background rendering is disabled"
           (it "shouldn't render anything to the frame buffer"
-            (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
-                                                  {:scanline 0
-                                                   :show-background? false
-                                                   :vram-addr 0})
+            (let [ppu-at-end-of-scanline-0 (merge! @ppu-at-end-of-scanline
+                                                   {:scanline 0
+                                                    :show-background? false
+                                                    :vram-addr 0})
                   machine {:ppu ppu-at-end-of-scanline-0}
                   new-ppu (ppu-step-debug machine)]
               (should-match-line [0 0 0 0 0 0 0 0] (:background-frame-buffer new-ppu) 0))))
 
         (describe "when background rendering is enabled"
           (it "should add the background tile rows to the second scanline"
-            (let [ppu-at-end-of-scanline-1 (merge ppu-at-end-of-scanline
-                                                  {:scanline 1
-                                                   :vram-addr 0x1000})
+            (let [ppu-at-end-of-scanline-1 (merge! @ppu-at-end-of-scanline
+                                                   {:scanline 1
+                                                    :vram-addr 0x1000})
                   machine {:ppu ppu-at-end-of-scanline-1}
                   new-ppu (ppu-step-debug machine)]
               (should-match-line [red 0 0 0 0 0 0 green]
@@ -196,9 +206,9 @@
                                  1)))
 
           (it "should add the background tile rows to the first scanline"
-            (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
-                                                  {:scanline 0
-                                                   :vram-addr 0})
+            (let [ppu-at-end-of-scanline-0 (merge! @ppu-at-end-of-scanline
+                                                   {:scanline 0
+                                                    :vram-addr 0})
                   machine {:ppu ppu-at-end-of-scanline-0}
                   new-ppu (ppu-step-debug machine)]
               (should-match-line [blue 0 red blue blue blue green 0]
@@ -207,11 +217,11 @@
 
         (describe "when neither sprite or background rendering is enabled"
           (it "shouldn't increment Y"
-            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? false
-                                                     :show-background? false
-                                                     :scanline 0
-                                                     :tick 256
-                                                     :vram-addr 0})
+            (let [ppu-at-end-of-scanline (merge! @ppu {:show-sprites? false
+                                                       :show-background? false
+                                                       :scanline 0
+                                                       :tick 256
+                                                       :vram-addr 0})
                   machine {:ppu ppu-at-end-of-scanline}
                   new-ppu (ppu-step-debug machine)]
               (should= 0 (:vram-addr new-ppu)))))
@@ -219,39 +229,39 @@
         (describe "when either sprite or background rendering is enabled"
           (it (str "should set coarse Y to 0 but not switch vertical nametables "
                    " when coarse Y is equal to 31")
-            (let [ppu-at-end-of-scanline (merge ppu {:show-background? true
-                                                     :scanline 0
-                                                     :tick 256
-                                                     :vram-addr 0x73e0})
+            (let [ppu-at-end-of-scanline (merge! @ppu {:show-background? true
+                                                       :scanline 0
+                                                       :tick 256
+                                                       :vram-addr 0x73e0})
                   machine {:ppu ppu-at-end-of-scanline}
                   new-ppu (ppu-step-debug machine)]
               (should= 0 (:vram-addr new-ppu))))
 
           (it (str "should set coarse Y to 0 and switch vertical nametables "
                    "when coarse Y is equal to 29")
-            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? true
-                                                     :scanline 0
-                                                     :tick 256
-                                                     :vram-addr 0x73a0})
+            (let [ppu-at-end-of-scanline (merge! @ppu {:show-sprites? true
+                                                       :scanline 0
+                                                       :tick 256
+                                                       :vram-addr 0x73a0})
                   machine {:ppu ppu-at-end-of-scanline}
                   new-ppu (ppu-step-debug machine)]
               (should= 0x800 (:vram-addr new-ppu))))
 
           (it (str "should set fine Y to 0 and increment coarse Y when "
                    "fine Y is equal to 7")
-            (let [ppu-at-end-of-scanline (merge ppu {:show-background? true
-                                                     :scanline 0
-                                                     :tick 256
-                                                     :vram-addr 0x7000})
+            (let [ppu-at-end-of-scanline (merge! @ppu {:show-background? true
+                                                       :scanline 0
+                                                       :tick 256
+                                                       :vram-addr 0x7000})
                   machine {:ppu ppu-at-end-of-scanline}
                   new-ppu (ppu-step-debug machine)]
               (should= 0x20 (:vram-addr new-ppu))))
 
           (it "should increment fine Y by 1 when it's < 7"
-            (let [ppu-at-end-of-scanline (merge ppu {:show-sprites? true
-                                                     :scanline 0
-                                                     :tick 256
-                                                     :vram-addr 0x1000})
+            (let [ppu-at-end-of-scanline (merge! @ppu {:show-sprites? true
+                                                       :scanline 0
+                                                       :tick 256
+                                                       :vram-addr 0x1000})
                   machine {:ppu ppu-at-end-of-scanline}
                   new-ppu (ppu-step-debug machine)]
               (should= 0x2000 (:vram-addr new-ppu)))))))
@@ -259,9 +269,9 @@
     (describe "the final vblanking scanline (260)"
       (describe "tick 1"
         (it "should clear the vblank started flag"
-          (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
-                                                 :scanline 260
-                                                 :tick 1})
+          (let [ppu-w-vblank-started (merge! @ppu {:vblank-started? true
+                                                   :scanline 260
+                                                   :tick 1})
                 machine {:ppu ppu-w-vblank-started}
                 new-ppu (ppu-step-debug machine)]
             (should-not (:vblank-started? new-ppu))))))
@@ -270,10 +280,10 @@
       (describe "tick 339"
         (describe "when on an even frame"
           (it "should advance to tick 340, scanline 261 as normal"
-            (let [ppu-odd (merge ppu {:show-background? true
-                                      :frame-count 2
-                                      :scanline 261
-                                      :tick 339})
+            (let [ppu-odd (merge! @ppu {:show-background? true
+                                        :frame-count 2
+                                        :scanline 261
+                                        :tick 339})
                   machine {:ppu ppu-odd}
                   new-ppu (ppu-step-debug machine)]
               (should= 261 (:scanline new-ppu))
@@ -282,10 +292,10 @@
         (describe "when on an odd frame"
           (describe "when background rendering is disabled"
             (it "should advance to tick 340, scanline 261 as normal"
-              (let [ppu-odd (merge ppu {:show-background? false
-                                        :frame-count 1
-                                        :scanline 261
-                                        :tick 339})
+              (let [ppu-odd (merge! @ppu {:show-background? false
+                                          :frame-count 1
+                                          :scanline 261
+                                          :tick 339})
                     machine {:ppu ppu-odd}
                     new-ppu (ppu-step-debug machine)]
                 (should= 261 (:scanline new-ppu))
@@ -293,10 +303,10 @@
 
           (describe "when background rendering is enabled"
             (it "should advance to tick 0, scanline 0 instead of tick 340, scanline 261"
-              (let [ppu-odd (merge ppu {:show-background? true
-                                        :frame-count 1
-                                        :scanline 261
-                                        :tick 339})
+              (let [ppu-odd (merge! @ppu {:show-background? true
+                                          :frame-count 1
+                                          :scanline 261
+                                          :tick 339})
                     machine {:ppu ppu-odd}
                     new-ppu (ppu-step-debug machine)]
                 (should= 0 (:scanline new-ppu))
@@ -305,11 +315,11 @@
       (describe "tick 304"
         (describe "when neither sprite or background rendering is enabled"
           (it "should not copy the vram latch to the vram addr"
-            (let [ppu-w-latch (merge ppu {:show-sprites? false
-                                          :show-background? false
-                                          :scanline 261
-                                          :tick 304
-                                          :vram-latch 0xbeef})
+            (let [ppu-w-latch (merge! @ppu {:show-sprites? false
+                                            :show-background? false
+                                            :scanline 261
+                                            :tick 304
+                                            :vram-latch 0xbeef})
                   machine {:ppu ppu-w-latch}
                   new-ppu (ppu-step-debug machine)]
               (should= 0 (:vram-addr new-ppu)))))
@@ -317,27 +327,27 @@
         (describe "when either sprite or background rendering is enabled"
           (it "should copy the vram latch to the vram addr"
             (for [flag [:show-background? :show-sprites?]]
-              (let [ppu-w-latch (merge ppu {flag true
-                                            :scanline 261
-                                            :tick 304
-                                            :vram-latch 0xbeef})
+              (let [ppu-w-latch (merge! @ppu {flag true
+                                              :scanline 261
+                                              :tick 304
+                                              :vram-latch 0xbeef})
                     machine {:ppu ppu-w-latch}
                     new-ppu (ppu-step-debug machine)]
                 (should= 0xbeef (:vram-addr new-ppu)))))))
 
       (describe "tick 1"
         (it "should clear the sprite overflow flag"
-          (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
-                                                  :scanline 261
-                                                  :tick 1})
+          (let [ppu-w-sprite-overflow (merge! @ppu {:sprite-overflow? true
+                                                    :scanline 261
+                                                    :tick 1})
                 machine {:ppu ppu-w-sprite-overflow}
                 new-ppu (ppu-step-debug machine)]
             (should-not (:sprite-overflow? new-ppu))))
 
         (it "should clear the sprite 0 hit flag"
-          (let [ppu-w-sprite-0 (merge ppu {:sprite-0-hit? true
-                                           :scanline 261
-                                           :tick 1})
+          (let [ppu-w-sprite-0 (merge! @ppu {:sprite-0-hit? true
+                                             :scanline 261
+                                             :tick 1})
                 machine {:ppu ppu-w-sprite-0}
                 new-ppu (ppu-step-debug machine)]
             (should-not (:sprite-0-hit? new-ppu)))))))
@@ -349,57 +359,57 @@
 
     (describe "read from the data register at $2007"
       (describe "when the address is >= $3f00"
-        (it "should read directly from the PPU's memory bus"
-          (let [ppu-w-data (merge ppu {:memory {0x3f00 0xff}
-                                       :vram-addr 0x3f00})]
+        (it "should read directly from the @ppu's memory bus"
+          (let [ppu-w-data (merge! @ppu {:memory {0x3f00 0xff}
+                                         :vram-addr 0x3f00})]
             (should= 0xff (first (ppu-read ppu-w-data 7)))))
 
         (it "should fill the vram data buffer with the value read from the bus
             $1000 below the current vram address"
-          (let [ppu-w-data (merge ppu {:memory {0x2f00 0xff}
-                                       :vram-addr 0x3f00})
+          (let [ppu-w-data (merge! @ppu {:memory {0x2f00 0xff}
+                                         :vram-addr 0x3f00})
                 new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
 
       (describe "when the address is < $3f00"
         (it "should read the current value of the vram data buffer"
-          (let [result (first (ppu-read (assoc ppu :vram-data-buffer 0xee) 7))]
+          (let [result (first (ppu-read (assoc! @ppu :vram-data-buffer 0xee) 7))]
             (should= 0xee result)))
 
         (it "should fill the vram data buffer with the value read from the bus"
-          (let [ppu-w-data (assoc ppu :memory {0 0xff})
+          (let [ppu-w-data (assoc! @ppu :memory {0 0xff})
                 new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
 
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"
-          (let [new-ppu (second (ppu-read (assoc ppu
+          (let [new-ppu (second (ppu-read (assoc! @ppu
                                                     :vram-addr-inc 1)
                                              7))]
             (should= 0x20 (:vram-addr new-ppu)))))
 
       (describe "when vram address increment is 0"
         (it "should increment the vram address by 1"
-          (let [new-ppu (second (ppu-read (assoc ppu
+          (let [new-ppu (second (ppu-read (assoc! @ppu
                                                     :vram-addr-inc 0)
                                              7))]
             (should= 1 (:vram-addr new-ppu))))))
 
     (describe "write to the data register at $2007"
       (it "should write to the PPU's memory bus at the vram address"
-        (let [new-ppu (second (ppu-write ppu 0xff 7))]
+        (let [new-ppu (second (ppu-write @ppu 0xff 7))]
           (should= 0xff (first (device-read (:memory new-ppu) 0)))))
 
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"
-          (let [new-ppu (second (ppu-write (assoc ppu
+          (let [new-ppu (second (ppu-write (assoc! @ppu
                                                      :vram-addr-inc 1)
                                               0 7))]
             (should= 0x20 (:vram-addr new-ppu)))))
 
       (describe "when vram address increment is 0"
         (it "should increment the vram address by 1"
-          (let [new-ppu (second (ppu-write (assoc ppu
+          (let [new-ppu (second (ppu-write (assoc! @ppu
                                                     :vram-addr-inc 0)
                                               0 7))]
             (should= 1 (:vram-addr new-ppu))))))
@@ -407,187 +417,187 @@
     (describe "write to the addr register at $2006"
       (describe "when the write latch is off"
         (it "should copy the vram latch into the vram address"
-          (let [new-ppu (second (ppu-write ppu-latch-off 0xff 6))]
+          (let [new-ppu (second (ppu-write @ppu-latch-off 0xff 6))]
             (should= 0xff (:vram-addr new-ppu))))
 
         (it "should overwrite the lower 8 bits of the vram latch with the
             written value"
-          (let [new-ppu (second (ppu-write (assoc ppu-latch-off
+          (let [new-ppu (second (ppu-write (assoc! @ppu-latch-off
                                                      :vram-latch
                                                      0x3fff) 0 6))]
             (should= 0x3f00 (:vram-latch new-ppu))))
 
         (it "should update the lower 8 bits of the vram latch with the written
             value"
-          (let [new-ppu (second (ppu-write ppu-latch-off 0xff 6))]
+          (let [new-ppu (second (ppu-write @ppu-latch-off 0xff 6))]
             (should= 0xff (:vram-latch new-ppu)))))
 
       (describe "when the write latch is on"
         (it "should clear bit 14 of the vram latch"
-          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x7fff) 0xff 6))]
+          (let [new-ppu (second (ppu-write (assoc! @ppu :vram-latch 0x7fff) 0xff 6))]
             (should= 0x3fff (:vram-latch new-ppu))))
 
         (it "should overwrite the existing bits 13-8 with the lower 6 bits of
             the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x3f00) 0 6))]
+          (let [new-ppu (second (ppu-write (assoc! @ppu :vram-latch 0x3f00) 0 6))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update bits 13-8 with the lower 6 bits of the 8 bit value
             that was written"
-          (let [new-ppu (second (ppu-write ppu 0x3f 6))]
+          (let [new-ppu (second (ppu-write @ppu 0x3f 6))]
             (should= 0x3f00 (:vram-latch new-ppu)))))
 
       (it "should flip the write latch"
-        (let [off (second (ppu-write ppu 0 6))
-              on (second (ppu-write off 0 6))]
-          (should (:write-latch? on))
-          (should-not (:write-latch? off)))))
+        (let [off (second (ppu-write @ppu 0 6))]
+          (should-not (:write-latch? off))
+          (let [on (second (ppu-write off 0 6))]
+            (should (:write-latch? on))))))
 
     (describe "write to the scroll register at $2005"
       (describe "when the write latch is off (updating vertical offset)"
         (it "should overwrite the existing bit 9-5 of the 15 bit vram latch
             with the upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write (assoc
-                                                ppu-latch-off
+          (let [new-ppu (second (ppu-write (assoc!
+                                                @ppu-latch-off
                                                 :vram-latch 0x3e0) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update bits 9-5 of the 15 bit vram latch with the upper 5
             bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write ppu-latch-off 0xf8 5))]
+          (let [new-ppu (second (ppu-write @ppu-latch-off 0xf8 5))]
             (should= 0x3e0 (:vram-latch new-ppu))))
 
         (it "should overwrite the existing upper 3 bits of the 15 bit vram latch
             with the lower 3 bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write (assoc
-                                                ppu-latch-off
+          (let [new-ppu (second (ppu-write (assoc!
+                                                @ppu-latch-off
                                                 :vram-latch 0x7000) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update the upper 3 bits of the 15 bit vram latch with the
             lower 3 bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write ppu-latch-off 7 5))]
+          (let [new-ppu (second (ppu-write @ppu-latch-off 7 5))]
             (should= 0x7000 (:vram-latch new-ppu)))))
 
       (describe "when the write latch is on (updating horizontal offset)"
         (it "shouldn't alter the upper 10 bits of the 15 bit vram latch when
             updating the lower 5 bits"
-          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x7fe0) 0xa8 5))]
+          (let [new-ppu (second (ppu-write (assoc! @ppu :vram-latch 0x7fe0) 0xa8 5))]
             (should= 0x7ff5 (:vram-latch new-ppu))))
 
         (it "should overwrite the existing lower 5 bits of the 15 bit vram
             latch with the upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write (assoc ppu :vram-latch 0x15) 0 5))]
+          (let [new-ppu (second (ppu-write (assoc! @ppu :vram-latch 0x15) 0 5))]
             (should= 0 (:vram-latch new-ppu))))
 
         (it "should update the lower 5 bits of the 15 bit vram latch with the
             upper 5 bits of the 8 bit value that was written"
-          (let [new-ppu (second (ppu-write ppu 0xff 5))]
+          (let [new-ppu (second (ppu-write @ppu 0xff 5))]
             (should= 0x1f (:vram-latch new-ppu))))
 
         (it "should copy the first three bits of the written value into the
             fine X internal register"
-          (let [new-ppu (second (ppu-write ppu 0xff 5))]
+          (let [new-ppu (second (ppu-write @ppu 0xff 5))]
             (should= 7 (:fine-x new-ppu)))))
 
       (it "should flip the write latch"
-        (let [off (second (ppu-write ppu 0 5))
-              on (second (ppu-write off 0 5))]
-          (should (:write-latch? on))
-          (should-not (:write-latch? off)))))
+        (let [off (second (ppu-write @ppu 0 5))]
+          (should-not (:write-latch? off))
+            (let [on (second (ppu-write off 0 5))]
+              (should (:write-latch? on))))))
 
     (describe "read from the oam data register at $2004"
       (it "should read the value pointed at by the oam addr"
-        (let [ppu-w-oam-data (assoc ppu :oam-ram {0 0xbe})]
+        (let [ppu-w-oam-data (assoc! @ppu :oam-ram {0 0xbe})]
           (should= 0xbe (first (ppu-read ppu-w-oam-data 4))))))
 
     (describe "write to the oam data register at $2004"
       (it "should modulo the oam address with 0x100 after incrementing"
-        (let [ppu-w-oam-addr (assoc ppu :oam-addr 0xff)
+        (let [ppu-w-oam-addr (assoc! @ppu :oam-addr 0xff)
               new-ppu (second (ppu-write ppu-w-oam-addr 0 4))]
           (should= 0 (:oam-addr new-ppu))))
 
       (it "should increment the oam address"
-        (let [new-ppu (second (ppu-write ppu 0xff 4))]
+        (let [new-ppu (second (ppu-write @ppu 0xff 4))]
           (should= 1 (:oam-addr new-ppu))))
 
       (it "should update the value pointed at by the oam addr"
-        (let [ppu-w-oam-addr (assoc ppu :oam-addr 5)
+        (let [ppu-w-oam-addr (assoc! @ppu :oam-addr 5)
               new-ppu (second (ppu-write ppu-w-oam-addr 0xff 4))]
           (should= 0xff (get (:oam-ram new-ppu) 5 0)))))
 
     (describe "write to the oam address register at $2003"
       (it "should set the oam address to the written value"
-        (let [new-ppu (second (ppu-write ppu 0xff 3))]
+        (let [new-ppu (second (ppu-write @ppu 0xff 3))]
           (should= 0xff (:oam-addr new-ppu)))))
 
     (describe "reading the status register at $2002"
       (it "should return vblank is not started when at tick 1 of scanline 240"
-        (let [ppu-right-before-vbl (merge ppu {:tick 1
-                                               :scanline 240
-                                               :vblank-started? true})
+        (let [ppu-right-before-vbl (merge! @ppu {:tick 1
+                                                 :scanline 240
+                                                 :vblank-started? true})
               status (first (ppu-read ppu-right-before-vbl 2))]
           (should= 0 (bit-and status 0x80))))
 
       (it "should not suppress vblank and NMI when not at tick 1 of scanline 240"
-        (let [ppu-right-before-vbl (merge ppu {:tick 1
-                                               :scanline 1
-                                               :suppress-vblank? true
-                                               :suppress-nmi? true})
+        (let [ppu-right-before-vbl (merge! @ppu {:tick 1
+                                                 :scanline 1
+                                                 :suppress-vblank? true
+                                                 :suppress-nmi? true})
               new-ppu (second (ppu-read ppu-right-before-vbl 2))]
           (should-not (:suppress-vblank? new-ppu))
           (should-not (:suppress-nmi? new-ppu))))
 
       (it "should suppress vblank and NMI when at tick 1 of scanline 240"
-        (let [ppu-right-before-vbl (merge ppu {:tick 1
-                                               :scanline 240})
+        (let [ppu-right-before-vbl (merge! @ppu {:tick 1
+                                                 :scanline 240})
               new-ppu (second (ppu-read ppu-right-before-vbl 2))]
           (should (:suppress-vblank? new-ppu))
           (should (:suppress-nmi? new-ppu))))
 
       (it "should set the write latch to true"
-        (let [ppu-w-latch-false (assoc ppu :write-latch? false)
+        (let [ppu-w-latch-false (assoc! @ppu :write-latch? false)
               new-ppu (second (ppu-read ppu-w-latch-false 2))]
           (should (:write-latch? new-ppu))))
 
       (it "should clear vblank started"
-        (let [ppu-w-vbl (assoc ppu :vblank-started? true)
+        (let [ppu-w-vbl (assoc! @ppu :vblank-started? true)
               ppu-wo-vbl (second (ppu-read ppu-w-vbl 2))]
           (should-not (:vblank-started? ppu-wo-vbl))))
 
       (it "should have bit 7 unset if vblank hasn't started"
-        (let [ppu-wo-vbl (assoc ppu :vblank-started? false)]
+        (let [ppu-wo-vbl (assoc! @ppu :vblank-started? false)]
           (should= 0 (first (ppu-read ppu-wo-vbl 2)))))
 
       (it "should have bit 7 set if vblank has started"
-        (let [ppu-w-vbl (assoc ppu :vblank-started? true)]
+        (let [ppu-w-vbl (assoc! @ppu :vblank-started? true)]
           (should= 0x80 (first (ppu-read ppu-w-vbl 2)))))
 
       (it "should have bit 6 unset if sprite 0 wasn't hit"
-        (let [ppu-w-s0 (assoc ppu :sprite-0-hit? false)]
+        (let [ppu-w-s0 (assoc! @ppu :sprite-0-hit? false)]
           (should= 0 (first (ppu-read ppu-w-s0 2)))))
 
       (it "should have bit 6 set if sprite 0 was hit"
-        (let [ppu-w-s0 (assoc ppu :sprite-0-hit? true)]
+        (let [ppu-w-s0 (assoc! @ppu :sprite-0-hit? true)]
           (should= 0x40 (first (ppu-read ppu-w-s0 2)))))
 
       (it "should have bit 5 unset if there wasn't a sprite overflow"
-        (let [ppu-w-overflow (assoc ppu :sprite-overflow? false)]
+        (let [ppu-w-overflow (assoc! @ppu :sprite-overflow? false)]
           (should= 0 (first (ppu-read ppu-w-overflow 2)))))
 
       (it "should have bit 5 set if there was a sprite overflow"
-        (let [ppu-w-overflow (assoc ppu :sprite-overflow? true)]
+        (let [ppu-w-overflow (assoc! @ppu :sprite-overflow? true)]
           (should= 0x20 (first (ppu-read ppu-w-overflow 2))))))
 
     (describe "writing to the mask register at $2001"
       (defn check-mask [m field]
-        (let [on (second (ppu-write ppu m 1))
-              off (second (ppu-write (assoc ppu field true) 0 1))]
+        (let [on (second (ppu-write (transient @persistent-ppu) m 1))
+              off (second (ppu-write (assoc! (transient @persistent-ppu) field true) 0 1))]
           (should (field on))
           (should-not (field off))))
 
       (it "should set the mask property to the written value"
-        (let [new-ppu (second (ppu-write ppu 0xbe 1))]
+        (let [new-ppu (second (ppu-write @ppu 0xbe 1))]
           (should= 0xbe (:mask new-ppu))))
 
       (it "should set intense blues based on the value at bit 7"
@@ -618,51 +628,51 @@
 
     (describe "writing to the control register at $2000"
       (it "should set bits 10 and 11 in the vram latch to the value at bits 0 and 1"
-        (let [with-vram-latch (second (ppu-write ppu 3 0))]
+        (let [with-vram-latch (second (ppu-write @ppu 3 0))]
           (should= 0xc00 (:vram-latch with-vram-latch))))
 
       (it "should turn on/off NMI on vertical blank based on the value at bit 7"
-        (let [on (second (ppu-write ppu 0x80 0))
-              off (second (ppu-write ppu 0 0))]
+        (let [on (second (ppu-write (transient @persistent-ppu) 0x80 0))
+              off (second (ppu-write (transient @persistent-ppu) 0 0))]
           (should (:nmi-on-vblank? on))
           (should-not (:nmi-on-vblank? off))))
 
       (it "should set the sprite size to the value at bit 5"
-        (let [sz-8x8 (second (ppu-write ppu 0 0))
-              sz-8x16 (second (ppu-write ppu 0x20 0))]
+        (let [sz-8x8 (second (ppu-write (transient @persistent-ppu) 0 0))
+              sz-8x16 (second (ppu-write (transient @persistent-ppu) 0x20 0))]
           (should= 1 (:sprite-size sz-8x16))
           (should= 0 (:sprite-size sz-8x8))))
 
       (it "should set the background pattern table address to the value at bit 4"
-        (let [at-0000 (second (ppu-write ppu 0 0))
-              at-1000 (second (ppu-write ppu 0x10 0))]
+        (let [at-0000 (second (ppu-write (transient @persistent-ppu) 0 0))
+              at-1000 (second (ppu-write (transient @persistent-ppu) 0x10 0))]
           (should= 1 (:background-pattern-addr at-1000))
           (should= 0 (:background-pattern-addr at-0000))))
 
       (it "should set the sprite pattern table address for 8x8 sprites to the
           value at bit 3"
-        (let [at-0000 (second (ppu-write ppu 0 0))
-              at-1000 (second (ppu-write ppu 8 0))]
+        (let [at-0000 (second (ppu-write (transient @persistent-ppu) 0 0))
+              at-1000 (second (ppu-write (transient @persistent-ppu) 8 0))]
           (should= 1 (:sprite-pattern-addr at-1000))
           (should= 0 (:sprite-pattern-addr at-0000))))
 
       (it "should set the VRAM address increment per CPU read/write of PPUDATA
           to the value at bit 2"
-        (let [vertical (second (ppu-write ppu 4 0))
-              horizontal (second (ppu-write ppu 0 0))]
+        (let [vertical (second (ppu-write (transient @persistent-ppu) 4 0))
+              horizontal (second (ppu-write (transient @persistent-ppu) 0 0))]
           (should= 1 (:vram-addr-inc vertical))
           (should= 0 (:vram-addr-inc horizontal))))
 
       (it "should set the base nametable address to the first two bits"
-        (let [at-2c00 (second (ppu-write ppu 3 0))
-              at-2800 (second (ppu-write ppu 2 0))
-              at-2400 (second (ppu-write ppu 1 0))
-              at-2000 (second (ppu-write ppu 0 0))]
+        (let [at-2c00 (second (ppu-write (transient @persistent-ppu) 3 0))
+              at-2800 (second (ppu-write (transient @persistent-ppu) 2 0))
+              at-2400 (second (ppu-write (transient @persistent-ppu) 1 0))
+              at-2000 (second (ppu-write (transient @persistent-ppu) 0 0))]
           (should= 0 (:base-nametable-addr at-2000))
           (should= 1 (:base-nametable-addr at-2400))
           (should= 2 (:base-nametable-addr at-2800))
           (should= 3 (:base-nametable-addr at-2c00))))
 
       (it "should set the control property to the written value"
-        (let [new-ppu (second (ppu-write ppu 3 0))]
+        (let [new-ppu (second (ppu-write @ppu 3 0))]
           (should= 3 (:control new-ppu)))))))

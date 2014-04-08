@@ -12,7 +12,7 @@
          remaining-cycles cycles]
     (if (zero? remaining-cycles)
       system
-      (recur (ppu-step system) (- remaining-cycles 1)))))
+      (recur (transient-ppu-step system) (- remaining-cycles 1)))))
 
 (defn- handle-interrupts [nes]
   (condp = (:interrupt nes)
@@ -24,6 +24,23 @@
         [cpu-cycles machine-after-cpu] (cpu-step after-interrupts)
         with-updated-ppu (catch-ppu-up machine-after-cpu (* 3 cpu-cycles))]
     with-updated-ppu))
+
+(defn- transient-machine [nes]
+  (let [ppu (:ppu nes)]
+    (assoc nes :ppu (transient ppu))))
+
+(defn- persistent-machine! [nes]
+  (let [ppu (:ppu nes)]
+    (assoc nes :ppu (persistent! ppu))))
+
+(defn step-frame [nes]
+  (let [current-frame (get-in nes [:ppu :frame-count])]
+    (loop [rendered-frame current-frame
+           transient-state (transient-machine nes)]
+      (if (== current-frame rendered-frame)
+        (recur (get-in transient-state [:ppu :frame-count])
+               (system-step transient-state))
+        (persistent-machine! transient-state)))))
 
 (defn- make-nes [cpu ppu apu mapper]
   (merge cpu {:ppu ppu
