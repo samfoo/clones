@@ -73,14 +73,14 @@
 
       (it "should read from program RAM"
         (let [rom-w-ram (assoc rom :prg-ram {0x6000 0xbe})]
-          (should= 0xbe (first (prg-read rom-w-ram 0x6000))))))
+          (should= 0xbe (first (prg-read rom-w-ram 0x6000))))))))
 
-    (describe "$4020 - $5fff (or anything less than $6000)"
-      (it "should throw an exception on writing"
-        (should-throw clojure.lang.ExceptionInfo "Invalid memory access on NROM cartridge"
-          (prg-write rom 1 0x4020)))
-
-      (it "should throw an exception on reading"
-        (should-throw clojure.lang.ExceptionInfo "Invalid memory access on NROM cartridge"
-          (prg-read rom 0x4020))))))
-
+    ;; (describe "$4020 - $5fff (or anything less than $6000)"
+    ;;   (it "should throw an exception on writing"
+    ;;     (should-throw clojure.lang.ExceptionInfo "Invalid memory access on NROM cartridge"
+    ;;       (prg-write rom 1 0x4020)))
+    ;;
+    ;;   (it "should throw an exception on reading"
+    ;;     (should-throw clojure.lang.ExceptionInfo "Invalid memory access on NROM cartridge"
+    ;;       (prg-read rom 0x4020))))))
+    ;;

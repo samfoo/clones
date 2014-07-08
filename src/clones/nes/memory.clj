@@ -26,11 +26,11 @@
 
 (defn- mem-read-ppu [bus addr]
   (let [relative-addr (bit-and 7 addr)]
-    (ppu-register-read bus relative-addr)))
+    (ppu-read bus relative-addr)))
 
 (defn- mem-write-ppu [bus v addr]
   (let [relative-addr (bit-and 7 addr)]
-    (ppu-register-write bus v relative-addr)))
+    (ppu-write bus v relative-addr)))
 
 (defn- mem-read-apu [bus addr]
   (let [relative-addr (bit-and 0x1f addr)]

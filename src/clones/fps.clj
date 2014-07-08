@@ -3,8 +3,8 @@
   (:require [clones.nes :refer :all]))
 
 (defn- run-to-frame [current last-frame]
-  (let [rendered-frame (get-in last-frame [:ppu :frame-count])
-        current-frame (get-in current [:ppu :frame-count])]
+  (let [rendered-frame (get last-frame :frame-count)
+        current-frame (get current :frame-count)]
     (if (= rendered-frame current-frame)
       (recur (system-step current) last-frame)
       current)))

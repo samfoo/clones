@@ -14,8 +14,8 @@
     (it (str "should switch horizontal nametables midway through if the tiles
              cross a nametable border")
       (let [ppu-w-nametables (merge ppu {:vram-addr 0x001f
-                                         :memory {0x201f 1
-                                                  0x2400 1}})
+                                         :video-memory {0x201f 1
+                                                        0x2400 1}})
             tile-indices (pattern-tile-indices-for-current-scanline
                            ppu-w-nametables)]
         (should= (-> tiles
@@ -23,8 +23,8 @@
                    (assoc 1 1)) tile-indices)))
 
     (it "should read from the nametables starting at vram addr + $2000"
-      (let [ppu-w-nametable (assoc ppu :memory {0x2000 1
-                                                0x201f 1})
+      (let [ppu-w-nametable (assoc ppu :video-memory {0x2000 1
+                                                      0x201f 1})
             tile-indices (pattern-tile-indices-for-current-scanline
                            ppu-w-nametable)]
         (should= (-> tiles
@@ -34,83 +34,77 @@
   (describe "pattern-tile-row"
     (it (str "should use the line index (fine Y scroll) as the least "
              "significant 4 bits")
-      (let [ppu-w-tile (assoc ppu :memory {0x01e1 0x41
-                                           0x01e9 0x11})
+      (let [ppu-w-tile (assoc ppu :video-memory {0x01e1 0x41
+                                                 0x01e9 0x11})
             palette-indices (pattern-tile-row ppu-w-tile 30 1)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it (str "should use the index (coarse X scroll) as the middle byte of "
              "the address (e.g. $0xx0)")
-      (let [ppu-w-tile (assoc ppu :memory {0x01e0 0x41
-                                           0x01e8 0x11})
+      (let [ppu-w-tile (assoc ppu :video-memory {0x01e0 0x41
+                                                 0x01e8 0x11})
             palette-indices (pattern-tile-row ppu-w-tile 30 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it "should start at $1000 if the background pattern address is 1"
       (let [ppu-w-tile (merge ppu {:background-pattern-addr 1
-                                   :memory {0x1000 0x41    ;; 01000001
-                                            0x1008 0x11}}) ;; 00010001
+                                   :video-memory {0x1000 0x41    ;; 01000001
+                                                  0x1008 0x11}}) ;; 00010001
             palette-indices (pattern-tile-row ppu-w-tile 0 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices)))
 
     (it (str "should read the low and high bytes and combine them into a "
              "stream of palette indices from 0 to 3")
-      (let [ppu-w-tile (assoc ppu :memory {0 0x41   ;; 01000001
-                                           8 0x11}) ;; 00010001
+      (let [ppu-w-tile (assoc ppu :video-memory {0 0x41   ;; 01000001
+                                                 8 0x11}) ;; 00010001
             palette-indices (pattern-tile-row ppu-w-tile 0 0)]
         (should= [0 1 0 2 0 0 0 3] palette-indices))))
 
   (describe "ppu-step"
-    (defn ppu-step-debug [machine]
-      (:ppu (ppu-step machine)))
-
     (let [ppu (assoc ppu :tick 340)]
       (describe "when the tick is 340"
         (it "should increment the scanline by 1 when it's less than 260"
-          (let [ppu-w-scanline (assoc ppu :scanline 0)
-                machine {:ppu ppu-w-scanline}]
-            (should= 1 (:scanline (ppu-step-debug machine)))))
+          (let [ppu-w-scanline (assoc ppu :scanline 0)]
+            (should= 1 (:scanline (ppu-step ppu-w-scanline)))))
 
         (it "should reset the scanline to 0 if it's 261"
-          (let [ppu-w-scanline (assoc ppu :scanline 261)
-                machine {:ppu ppu-w-scanline}]
-            (should= 0 (:scanline (ppu-step-debug machine)))))
+          (let [ppu-w-scanline (assoc ppu :scanline 261)]
+            (should= 0 (:scanline (ppu-step ppu-w-scanline)))))
 
         (it "should reset the tick to 0"
-          (should= 0 (:tick (ppu-step-debug {:ppu ppu}))))))
+          (should= 0 (:tick (ppu-step ppu))))))
 
     (it "should increment the tick by 1 when it's less than 340"
-      (should= 1 (:tick (ppu-step-debug {:ppu ppu}))))
+      (should= 1 (:tick (ppu-step ppu))))
 
     (describe "the post-render scanline +1 (240)"
       (describe "tick 1"
         (describe "when rendering is enabled"
           (it "should increment the framecount"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :scanline 240
-                                            :frame-count 0
-                                            :show-background? true})}
+            (let [machine (merge ppu {:tick 1
+                                      :scanline 240
+                                      :frame-count 0
+                                      :show-background? true})
                   new-machine (ppu-step machine)]
-              (should= 1 (get-in new-machine [:ppu :frame-count])))))
-
+              (should= 1 (:frame-count new-machine)))))
 
         (describe "when NMI on vblank control is turned off"
           (it "should not request an NMI"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :nmi-on-vblank? false
-                                            :scanline 240})
-                           :interrupt nil}
-                  new-machine (ppu-step machine)]
-              (should= nil (:interrupt new-machine)))))
+            (let [ppu-wo-nmi (merge ppu {:tick 1
+                                         :nmi-on-vblank? false
+                                         :scanline 240
+                                         :interrupt nil})
+                  new-ppu (ppu-step ppu-wo-nmi)]
+              (should= nil (:interrupt new-ppu)))))
 
         (describe "when NMI on vblank control is turned on"
           (it "should request an NMI"
-            (let [machine {:ppu (merge ppu {:tick 1
-                                            :nmi-on-vblank? true
-                                            :scanline 240})
-                           :interrupt nil}
-                  new-machine (ppu-step machine)]
-              (should= :nmi (:interrupt new-machine)))))
+            (let [ppu-nmi (merge ppu {:tick 1
+                                      :nmi-on-vblank? true
+                                      :scanline 240
+                                      :interrupt nil})
+                  new-ppu (ppu-step ppu-nmi)]
+              (should= :nmi (:interrupt new-ppu)))))
 
         (describe "when suppressing vblank"
           (it "should unsuppress vblank after having suppressed it"
@@ -118,8 +112,7 @@
                                               :scanline 240
                                               :tick 1
                                               :suppress-vblank? true})
-                  machine {:ppu ppu-suppressing}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-suppressing)]
               (should-not (:suppress-vblank? new-ppu))))
 
           (it "should not set the vblank started flag"
@@ -127,16 +120,14 @@
                                               :scanline 240
                                               :tick 1
                                               :suppress-vblank? true})
-                  machine {:ppu ppu-suppressing}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-suppressing)]
               (should-not (:vblank-started? new-ppu)))))
 
         (it "should set the vblank started flag"
           (let [ppu-wo-vblank-started (merge ppu {:vblank-started? false
                                                   :scanline 240
                                                   :tick 1})
-                machine {:ppu ppu-wo-vblank-started}
-                new-ppu (ppu-step-debug machine)]
+                new-ppu (ppu-step ppu-wo-vblank-started)]
             (should (:vblank-started? new-ppu))))))
 
     (describe "the visible scanlines (0-239)"
@@ -164,7 +155,7 @@
         (def ppu-at-end-of-scanline (merge ppu {:show-sprites? false
                                                 :show-background? true
                                                 :tick 256
-                                                :memory memory}))
+                                                :video-memory memory}))
 
         (defn should-match-line [v bi line]
           (doseq [x (range (count v))]
@@ -180,8 +171,7 @@
                                                   {:scanline 0
                                                    :show-background? false
                                                    :vram-addr 0})
-                  machine {:ppu ppu-at-end-of-scanline-0}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline-0)]
               (should-match-line [0 0 0 0 0 0 0 0] (:background-frame-buffer new-ppu) 0))))
 
         (describe "when background rendering is enabled"
@@ -189,8 +179,7 @@
             (let [ppu-at-end-of-scanline-1 (merge ppu-at-end-of-scanline
                                                   {:scanline 1
                                                    :vram-addr 0x1000})
-                  machine {:ppu ppu-at-end-of-scanline-1}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline-1)]
               (should-match-line [red 0 0 0 0 0 0 green]
                                  (:background-frame-buffer new-ppu)
                                  1)))
@@ -199,8 +188,7 @@
             (let [ppu-at-end-of-scanline-0 (merge ppu-at-end-of-scanline
                                                   {:scanline 0
                                                    :vram-addr 0})
-                  machine {:ppu ppu-at-end-of-scanline-0}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline-0)]
               (should-match-line [blue 0 red blue blue blue green 0]
                                  (:background-frame-buffer new-ppu)
                                  0))))
@@ -212,8 +200,7 @@
                                                      :scanline 0
                                                      :tick 256
                                                      :vram-addr 0})
-                  machine {:ppu ppu-at-end-of-scanline}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline)]
               (should= 0 (:vram-addr new-ppu)))))
 
         (describe "when either sprite or background rendering is enabled"
@@ -223,8 +210,7 @@
                                                      :scanline 0
                                                      :tick 256
                                                      :vram-addr 0x73e0})
-                  machine {:ppu ppu-at-end-of-scanline}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline)]
               (should= 0 (:vram-addr new-ppu))))
 
           (it (str "should set coarse Y to 0 and switch vertical nametables "
@@ -233,8 +219,7 @@
                                                      :scanline 0
                                                      :tick 256
                                                      :vram-addr 0x73a0})
-                  machine {:ppu ppu-at-end-of-scanline}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline)]
               (should= 0x800 (:vram-addr new-ppu))))
 
           (it (str "should set fine Y to 0 and increment coarse Y when "
@@ -243,8 +228,7 @@
                                                      :scanline 0
                                                      :tick 256
                                                      :vram-addr 0x7000})
-                  machine {:ppu ppu-at-end-of-scanline}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline)]
               (should= 0x20 (:vram-addr new-ppu))))
 
           (it "should increment fine Y by 1 when it's < 7"
@@ -252,8 +236,7 @@
                                                      :scanline 0
                                                      :tick 256
                                                      :vram-addr 0x1000})
-                  machine {:ppu ppu-at-end-of-scanline}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-at-end-of-scanline)]
               (should= 0x2000 (:vram-addr new-ppu)))))))
 
     (describe "the final vblanking scanline (260)"
@@ -262,8 +245,7 @@
           (let [ppu-w-vblank-started (merge ppu {:vblank-started? true
                                                  :scanline 260
                                                  :tick 1})
-                machine {:ppu ppu-w-vblank-started}
-                new-ppu (ppu-step-debug machine)]
+                new-ppu (ppu-step ppu-w-vblank-started)]
             (should-not (:vblank-started? new-ppu))))))
 
     (describe "the pre-render scanline (261)"
@@ -274,8 +256,7 @@
                                       :frame-count 2
                                       :scanline 261
                                       :tick 339})
-                  machine {:ppu ppu-odd}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-odd)]
               (should= 261 (:scanline new-ppu))
               (should= 340 (:tick new-ppu)))))
 
@@ -286,8 +267,7 @@
                                         :frame-count 1
                                         :scanline 261
                                         :tick 339})
-                    machine {:ppu ppu-odd}
-                    new-ppu (ppu-step-debug machine)]
+                    new-ppu (ppu-step ppu-odd)]
                 (should= 261 (:scanline new-ppu))
                 (should= 340 (:tick new-ppu)))))
 
@@ -297,8 +277,7 @@
                                         :frame-count 1
                                         :scanline 261
                                         :tick 339})
-                    machine {:ppu ppu-odd}
-                    new-ppu (ppu-step-debug machine)]
+                    new-ppu (ppu-step ppu-odd)]
                 (should= 0 (:scanline new-ppu))
                 (should= 0 (:tick new-ppu)))))))
 
@@ -310,8 +289,7 @@
                                           :scanline 261
                                           :tick 304
                                           :vram-latch 0xbeef})
-                  machine {:ppu ppu-w-latch}
-                  new-ppu (ppu-step-debug machine)]
+                  new-ppu (ppu-step ppu-w-latch)]
               (should= 0 (:vram-addr new-ppu)))))
 
         (describe "when either sprite or background rendering is enabled"
@@ -321,8 +299,7 @@
                                             :scanline 261
                                             :tick 304
                                             :vram-latch 0xbeef})
-                    machine {:ppu ppu-w-latch}
-                    new-ppu (ppu-step-debug machine)]
+                    new-ppu (ppu-step ppu-w-latch)]
                 (should= 0xbeef (:vram-addr new-ppu)))))))
 
       (describe "tick 1"
@@ -330,16 +307,14 @@
           (let [ppu-w-sprite-overflow (merge ppu {:sprite-overflow? true
                                                   :scanline 261
                                                   :tick 1})
-                machine {:ppu ppu-w-sprite-overflow}
-                new-ppu (ppu-step-debug machine)]
+                new-ppu (ppu-step ppu-w-sprite-overflow)]
             (should-not (:sprite-overflow? new-ppu))))
 
         (it "should clear the sprite 0 hit flag"
           (let [ppu-w-sprite-0 (merge ppu {:sprite-0-hit? true
                                            :scanline 261
                                            :tick 1})
-                machine {:ppu ppu-w-sprite-0}
-                new-ppu (ppu-step-debug machine)]
+                new-ppu (ppu-step ppu-w-sprite-0)]
             (should-not (:sprite-0-hit? new-ppu)))))))
 
   (describe "memory mapped register I/O"
@@ -350,13 +325,13 @@
     (describe "read from the data register at $2007"
       (describe "when the address is >= $3f00"
         (it "should read directly from the PPU's memory bus"
-          (let [ppu-w-data (merge ppu {:memory {0x3f00 0xff}
+          (let [ppu-w-data (merge ppu {:video-memory {0x3f00 0xff}
                                        :vram-addr 0x3f00})]
             (should= 0xff (first (ppu-read ppu-w-data 7)))))
 
         (it "should fill the vram data buffer with the value read from the bus
             $1000 below the current vram address"
-          (let [ppu-w-data (merge ppu {:memory {0x2f00 0xff}
+          (let [ppu-w-data (merge ppu {:video-memory {0x2f00 0xff}
                                        :vram-addr 0x3f00})
                 new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
@@ -367,7 +342,7 @@
             (should= 0xee result)))
 
         (it "should fill the vram data buffer with the value read from the bus"
-          (let [ppu-w-data (assoc ppu :memory {0 0xff})
+          (let [ppu-w-data (assoc ppu :video-memory {0 0xff})
                 new-ppu (second (ppu-read ppu-w-data 7))]
             (should= 0xff (:vram-data-buffer new-ppu)))))
 
@@ -388,7 +363,7 @@
     (describe "write to the data register at $2007"
       (it "should write to the PPU's memory bus at the vram address"
         (let [new-ppu (second (ppu-write ppu 0xff 7))]
-          (should= 0xff (first (device-read (:memory new-ppu) 0)))))
+          (should= 0xff (first (device-read (:video-memory new-ppu) 0)))))
 
       (describe "when vram address increment is 1"
         (it "should increment the vram address by 32"

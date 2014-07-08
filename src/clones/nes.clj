@@ -26,11 +26,12 @@
     with-updated-ppu))
 
 (defn- make-nes [cpu ppu apu mapper]
-  (merge cpu {:ppu ppu
-              :apu apu
-              :internal-ram {}
-              :mapper mapper
-              :interrupt nil}))
+  (-> cpu
+    (merge ppu)
+    (merge {:apu apu
+            :internal-ram {}
+            :mapper mapper
+            :interrupt nil})))
 
 (defn init-nes [rom-file]
   (let [rom (read-rom rom-file)

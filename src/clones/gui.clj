@@ -9,8 +9,8 @@
   (:import [java.awt Graphics2D RenderingHints]))
 
 (defn- run [nes-atom nes]
-  (let [rendered-frame-id (get-in @nes-atom [:ppu :frame-count])
-        machine-frame-id (get-in nes [:ppu :frame-count])]
+  (let [rendered-frame-id (get @nes-atom :frame-count)
+        machine-frame-id (get nes :frame-count)]
     (when (not= rendered-frame-id machine-frame-id)
       (reset! nes-atom nes))
     (recur nes-atom (system-step nes))))
@@ -34,7 +34,7 @@
   (.drawImage g frame-buffer 0 0 256 240 nil))
 
 (defn- paint [c g nes]
-  (let [frame-buffer (get-in nes [:ppu :background-frame-buffer])]
+  (let [frame-buffer (get nes :background-frame-buffer)]
     (render-buffer g frame-buffer)))
 
 (defn- paint-pattern-table-tile [c g tile x y]
@@ -56,7 +56,7 @@
       (paint-pattern-table-tile c g tile x y))))
 
 (defn- paint-pattern-table [c g nes which-table]
-  (let [tiles (pattern-table-tiles (:ppu nes) which-table)]
+  (let [tiles (pattern-table-tiles nes which-table)]
     (paint-pattern-table-tiles c g tiles)))
 
 (defn- show-pattern-table-window! [nes]

@@ -92,19 +92,19 @@
                           (+ 0x20 (:vram-addr ppu)))))
 
 (defn data-write [ppu v]
-  (let [memory (:memory ppu)
+  (let [memory (:video-memory ppu)
         memory-after-write (second (device-write memory v (:vram-addr ppu)))
-        after-write (assoc ppu :memory memory-after-write)]
+        after-write (assoc ppu :video-memory memory-after-write)]
     (advance-vram-addr after-write)))
 
 (defn- data-read-buffered [ppu]
   (let [result (:vram-data-buffer ppu)
-        memory (:memory ppu)
+        memory (:video-memory ppu)
         new-vram-data-buffer (first (device-read memory (:vram-addr ppu)))]
     [result (assoc ppu :vram-data-buffer new-vram-data-buffer)]))
 
 (defn- data-read-unbuffered [ppu]
-  (let [memory (:memory ppu)
+  (let [memory (:video-memory ppu)
         result (first (device-read memory (:vram-addr ppu)))
         buffer-fill-addr (- (:vram-addr ppu) 0x1000)
         new-vram-data-buffer (first (device-read memory buffer-fill-addr))]
@@ -148,21 +148,12 @@
        7 (data-write ppu v)
        ppu)])
 
-(defn ppu-register-write [machine v addr]
-  (let [ppu (:ppu machine)]
-    [v (assoc machine :ppu (second (ppu-write ppu v addr)))]))
-
 (defn ppu-read [ppu addr]
   (condp = addr
     2 (status-read ppu)
     4 (oam-data-read ppu)
     7 (data-read ppu)
     [0 ppu]))
-
-(defn ppu-register-read [machine addr]
-  (let [ppu (:ppu machine)
-        [v new-ppu] (ppu-read ppu addr)]
-    [v (assoc machine :ppu new-ppu)]))
 
 (def init-oam-ram (vec (repeat 0x100 0)))
 
@@ -203,39 +194,36 @@
    :frame-count 0
 
    :background-frame-buffer (BufferedImage. 256 240 BufferedImage/TYPE_INT_ARGB)
-   :memory bus})
+   :video-memory bus})
 
 (defn- rendering-enabled? [ppu]
   (or (:show-sprites? ppu) (:show-background? ppu)))
 
-(defn- step-pre-render-scanline [machine]
-  (let [ppu (:ppu machine)]
-    (condp = (:tick ppu)
-      1 (assoc machine :ppu
-               (merge ppu {:sprite-0-hit? false
-                           :sprite-overflow? false}))
-      304 (if (rendering-enabled? ppu)
-            (assoc-in machine [:ppu :vram-addr] (:vram-latch ppu))
-            machine)
-      machine)))
+(defn- step-pre-render-scanline [ppu]
+  (condp = (:tick ppu)
+    1 (merge ppu {:sprite-0-hit? false
+                  :sprite-overflow? false})
+    304 (if (rendering-enabled? ppu)
+          (assoc ppu :vram-addr (:vram-latch ppu))
+          ppu)
+    ppu))
 
-(defn- step-post-render-scanline [machine]
-  (let [ppu (:ppu machine)]
-    (if (= 1 (:tick ppu))
-      (let [request-nmi? (and
-                           (:nmi-on-vblank? ppu)
-                           (not (:suppress-nmi? ppu)))
-            frame-count (if (rendering-enabled? ppu)
-                          (inc (:frame-count ppu))
-                          (:frame-count ppu))
-            ppu-after-vblank (merge ppu
-                                    {:vblank-started? (not (:suppress-vblank? ppu))
-                                     :frame-count frame-count
-                                     :suppress-vblank? false
-                                     :suppress-nmi? false})
-            nmi (when request-nmi? :nmi)]
-        (merge machine {:ppu ppu-after-vblank :interrupt nmi}))
-      machine)))
+(defn- step-post-render-scanline [ppu]
+  (if (= 1 (:tick ppu))
+    (let [request-nmi? (and
+                         (:nmi-on-vblank? ppu)
+                         (not (:suppress-nmi? ppu)))
+          frame-count (if (rendering-enabled? ppu)
+                        (inc (:frame-count ppu))
+                        (:frame-count ppu))
+          ppu-after-vblank (merge ppu
+                                  {:vblank-started? (not (:suppress-vblank? ppu))
+                                   :frame-count frame-count
+                                   :suppress-vblank? false
+                                   :suppress-nmi? false})
+          nmi (when request-nmi? :nmi)]
+      (assoc ppu-after-vblank :interrupt nmi))
+    ppu))
 
 (defn- inc-coarse-y [ppu]
   (let [;; Get the vram addr with the fine y cleared to 0
@@ -282,7 +270,7 @@
                 (bit-and 0x0ff0)
                 (bit-or pattern-table-addr)
                 (bit-or fine-y))
-        memory (:memory ppu)
+        memory (:video-memory ppu)
         pixel-row-low (first (device-read memory start))
         pixel-row-high (first (device-read memory (+ start 8)))]
     (reduce (fn [palette-indices i]
@@ -311,7 +299,7 @@
 
 (defn pattern-tile-indices-for-current-scanline [ppu]
   ;; TODO: Fine-x scroll... I'm not entirely sure how it works.
-  (let [memory (:memory ppu)
+  (let [memory (:video-memory ppu)
         vram-addr (:vram-addr ppu)]
     (map (fn [i]
            (let [nametable-addr (bit-or
@@ -330,18 +318,18 @@
     2 0xff00ff00
     3 0xff0000ff))
 
-(defn- render-background-for-current-scanline [ppu] ppu)
-  ;; (let [scanline (:scanline ppu)
-  ;;       frame-buffer (:background-frame-buffer ppu)
-  ;;       fine-y (bit-shift-right (:vram-addr ppu) 12)
-  ;;       tile-indices (pattern-tile-indices-for-current-scanline ppu)
-  ;;       scanline-pattern (vec (flatten
-  ;;                               (map #(pattern-tile-row ppu % fine-y)
-  ;;                                    tile-indices)))]
-  ;;   (doseq [x (range 256)]
-  ;;     (let [color-index (nth scanline-pattern x)]
-  ;;       (.setRGB frame-buffer x scanline (get-color color-index)))))
-  ;; ppu)
+(defn- render-background-for-current-scanline [ppu]
+  (let [scanline (:scanline ppu)
+        frame-buffer (:background-frame-buffer ppu)
+        fine-y (bit-shift-right (:vram-addr ppu) 12)
+        tile-indices (pattern-tile-indices-for-current-scanline ppu)
+        scanline-pattern (vec (flatten
+                                (map #(pattern-tile-row ppu % fine-y)
+                                     tile-indices)))]
+    (doseq [x (range 256)]
+      (let [color-index (nth scanline-pattern x)]
+        (.setRGB frame-buffer x scanline (get-color color-index)))))
+  ppu)
 
 (defn- maybe-render-background [ppu]
   (if (:show-background? ppu)
@@ -353,14 +341,12 @@
     (inc-fine-y ppu)
     ppu))
 
-(defn- step-visible-scanline [machine]
-  (let [ppu (:ppu machine)]
-    (if (= 256 (:tick ppu))
-      (let [after-scanline (-> ppu
-                             (maybe-render-background)
-                             (maybe-inc-fine-y))]
-        (assoc machine :ppu after-scanline))
-      machine)))
+(defn- step-visible-scanline [ppu]
+  (if (= 256 (:tick ppu))
+    (-> ppu
+      (maybe-render-background)
+      (maybe-inc-fine-y))
+    ppu))
 
 (defn- advance-odd-scanline [ppu]
   (merge ppu {:scanline 0 :tick 0}))
@@ -383,22 +369,20 @@
       (advance-odd-scanline ppu)
       (advance-normal-scanline ppu scanline tick))))
 
-(defn ppu-step [machine]
-  (let [ppu (:ppu machine)
-        scanline ^int (:scanline ppu)
-        tick ^int (:tick ppu)
-        machine (cond
-                  (< scanline 240) (step-visible-scanline machine)
+(defn ppu-step [ppu]
+  (let [scanline (:scanline ppu)
+        tick (:tick ppu)
+        new-ppu (cond
+                  (< scanline 240) (step-visible-scanline ppu)
 
-                  (== 240 scanline) (step-post-render-scanline machine)
+                  (== 240 scanline) (step-post-render-scanline ppu)
 
                   (and
                     (== 260 scanline)
-                    (== 1 tick)) (assoc-in machine [:ppu :vblank-started?] false)
+                    (== 1 tick)) (assoc ppu :vblank-started? false)
 
-                  (== 261 scanline) (step-pre-render-scanline machine)
+                  (== 261 scanline) (step-pre-render-scanline ppu)
 
-                  :else machine)
-        after-advancing (advance-scanline (:ppu machine))]
-    (assoc machine :ppu after-advancing)))
+                  :else ppu)]
+    (advance-scanline new-ppu)))
 
